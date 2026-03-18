@@ -1,23 +1,17 @@
 [package]
 name = "flaregun"
 version = "1.0.0"
-edition = "2021"
+edition = "2024"
+resolve = "3"
 description = "A Rust library to bypass Cloudflare anti-bot protections"
 license = "MIT"
+repository = "https://github.com/nacht-org/flaregun"
 keywords = ["cloudflare", "scraper", "http", "bot-bypass"]
 categories = ["web-programming", "network-programming"]
 
-[lib]
-name = "flaregun"
-path = "src/lib.rs"
-
-[[bin]]
-name = "flaregun"
-path = "src/main.rs"
-
 [dependencies]
 # HTTP client with cookie store and TLS support
-reqwest = { version = "0.12", features = [
+reqwest = { version = "0.13.2", default-features = false, features = [
     "cookies",
     "gzip",
     "brotli",
@@ -25,8 +19,12 @@ reqwest = { version = "0.12", features = [
     "json",
     "multipart",
     "stream",
-    "rustls-tls",
+    "rustls",
     "socks",
+    "http2",
+    "charset",
+    "form",
+    "query",
 ] }
 
 # Async runtime

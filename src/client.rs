@@ -189,7 +189,6 @@ impl CloudScraperBuilder {
             .gzip(true)
             .brotli(self.user_agent_opts.allow_brotli)
             .deflate(true)
-            .use_rustls_tls()
             .build()
             .map_err(CloudscraperError::HttpError)?;
 
@@ -455,7 +454,6 @@ impl CloudScraper {
             let no_redirect_client = reqwest::Client::builder()
                 .cookie_store(true)
                 .redirect(reqwest::redirect::Policy::none())
-                .use_rustls_tls()
                 .build()
                 .map_err(CloudscraperError::HttpError)?;
 
