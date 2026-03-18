@@ -2,7 +2,7 @@
 
 use std::time::{Duration, Instant};
 
-use rand::Rng;
+use rand::prelude::RngExt;
 use reqwest::header::{HeaderMap, HeaderValue};
 
 /// Configuration for stealth mode.
@@ -48,11 +48,12 @@ impl StealthState {
     /// Block until the human-like delay has elapsed, then record this request.
     pub async fn pre_request(&mut self) {
         if self.config.enabled && self.config.human_like_delays && self.request_count > 0 {
-            let mut rng = rand::thread_rng();
-            let mut delay = rng.gen_range(self.config.min_delay_secs..=self.config.max_delay_secs);
+            let mut rng = rand::rng();
+            let mut delay =
+                rng.random_range(self.config.min_delay_secs..=self.config.max_delay_secs);
 
             // 10% chance of a slightly longer pause.
-            if rng.gen_bool(0.1) {
+            if rng.random_bool(0.1) {
                 delay *= 1.5;
             }
             delay = delay.min(10.0);
@@ -72,7 +73,7 @@ impl StealthState {
             return;
         }
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
 
         // ── Randomise Accept ──────────────────────────────────────────────────
         if self.config.randomize_headers && !headers.contains_key("Accept") {
@@ -81,7 +82,7 @@ impl StealthState {
                 "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
                 "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
             ];
-            let chosen = options[rng.gen_range(0..options.len())];
+            let chosen = options[rng.random_range(0..options.len())];
             headers.insert(reqwest::header::ACCEPT, HeaderValue::from_static(chosen));
         }
 
@@ -93,7 +94,7 @@ impl StealthState {
                 "en-GB,en;q=0.9,en-US;q=0.8",
                 "en-CA,en;q=0.9,en-US;q=0.8",
             ];
-            let chosen = options[rng.gen_range(0..options.len())];
+            let chosen = options[rng.random_range(0..options.len())];
             headers.insert(
                 reqwest::header::ACCEPT_LANGUAGE,
                 HeaderValue::from_static(chosen),
@@ -101,7 +102,7 @@ impl StealthState {
         }
 
         // ── DNT (50 % chance) ─────────────────────────────────────────────────
-        if self.config.randomize_headers && rng.gen_bool(0.5) {
+        if self.config.randomize_headers && rng.random_bool(0.5) {
             headers.insert("dnt", HeaderValue::from_static("1"));
         }
 

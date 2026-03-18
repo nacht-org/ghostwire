@@ -3,8 +3,7 @@
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
-use rand::seq::SliceRandom;
-use rand::thread_rng;
+use rand::prelude::IndexedRandom;
 
 use crate::error::{CloudscraperError, Result};
 
@@ -85,7 +84,7 @@ impl ProxyManager {
 
         let chosen = match &self.strategy {
             RotationStrategy::Random => {
-                let mut rng = thread_rng();
+                let mut rng = rand::rng();
                 available.choose(&mut rng).cloned()?
             }
             RotationStrategy::Smart => available

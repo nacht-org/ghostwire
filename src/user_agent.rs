@@ -5,8 +5,7 @@
 use std::collections::HashMap;
 
 use once_cell::sync::Lazy;
-use rand::seq::SliceRandom;
-use rand::thread_rng;
+use rand::prelude::IndexedRandom;
 use serde::Deserialize;
 
 // Embed the JSON at compile time so the binary is self-contained.
@@ -169,7 +168,7 @@ impl UserAgent {
         }
 
         // ── Random / filtered selection ───────────────────────────────────────
-        let mut rng = thread_rng();
+        let mut rng = rand::rng();
 
         // Collect candidate (platform, browser, agents) combos – owned data to
         // avoid lifetime issues with the `db` static reference.
@@ -214,7 +213,8 @@ impl UserAgent {
             ));
         }
 
-        let (_, browser, agents) = candidates.choose(&mut rng).unwrap();
+        let (_, browser, agents): &(String, Browser, Vec<String>) =
+            candidates.choose(&mut rng).unwrap();
         let ua_string = agents.choose(&mut rng).unwrap().clone();
         let bk = browser.key();
         let mut headers = db.headers[bk].clone();
