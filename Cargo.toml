@@ -74,9 +74,6 @@ once_cell = "1"
 # String utilities
 base64 = "0.22"
 
-# CLI argument parsing
-clap = { version = "4", features = ["derive"] }
-
 # Raw HTTP response construction
 http = "1"
 bytes = "1"
