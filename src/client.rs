@@ -7,6 +7,7 @@ use bytes::Bytes;
 use reqwest::header::{HeaderMap, HeaderValue, ORIGIN, REFERER};
 use reqwest::{Method, Response};
 use tokio::sync::Mutex;
+use tracing::{debug, instrument, warn};
 use url::Url;
 
 use crate::captcha::{CaptchaConfig, CaptchaKind, make_solver};
@@ -281,6 +282,11 @@ impl CloudScraper {
     // ── Core request dispatch ─────────────────────────────────────────────────
 
     /// Send an HTTP request, automatically handling Cloudflare challenges.
+    #[instrument(
+        name = "request",
+        skip(self, opts),
+        fields(method = %method, url = %url, depth = self.solve_depth)
+    )]
     pub async fn request(
         &mut self,
         method: Method,
@@ -309,9 +315,7 @@ impl CloudScraper {
         let headers_clone = response.headers().clone();
         let final_url = response.url().clone();
 
-        if self.config.debug {
-            log::debug!("[CloudScraper] {} {} -> {}", method, url, status);
-        }
+        debug!(method = %method, url = %url, status = status, "response received");
 
         // ── Loop-protection ──────────────────────────────────────────────────
         if self.solve_depth >= self.config.solve_depth {
@@ -330,18 +334,14 @@ impl CloudScraper {
         if !self.config.disable_turnstile
             && CloudflareTurnstile::is_turnstile_challenge(status, &server, &body)
         {
-            if self.config.debug {
-                log::debug!("[CloudScraper] Detected Turnstile challenge");
-            }
+            debug!(depth = self.solve_depth + 1, "detected Turnstile challenge");
             self.solve_depth += 1;
             return self.handle_turnstile(final_url.as_str(), &body, opts).await;
         }
 
         // ── v3 ───────────────────────────────────────────────────────────────
         if !self.config.disable_v3 && CloudflareV3::is_v3_challenge(status, &server, &body) {
-            if self.config.debug {
-                log::debug!("[CloudScraper] Detected v3 challenge");
-            }
+            debug!(depth = self.solve_depth + 1, "detected v3 challenge");
             self.solve_depth += 1;
             return self.handle_v3(final_url.as_str(), &body, opts).await;
         }
@@ -389,13 +389,11 @@ impl CloudScraper {
         if status == 403 && self.config.auto_refresh_on_403 {
             if self.retry_403_count < self.config.max_403_retries {
                 self.retry_403_count += 1;
-                if self.config.debug {
-                    log::debug!(
-                        "[CloudScraper] 403 – retry {}/{}",
-                        self.retry_403_count,
-                        self.config.max_403_retries
-                    );
-                }
+                warn!(
+                    retry = self.retry_403_count,
+                    max = self.config.max_403_retries,
+                    "403 received, retrying"
+                );
                 return Box::pin(self.request(method, url, opts)).await;
             }
         }

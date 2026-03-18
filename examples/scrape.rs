@@ -30,10 +30,10 @@ use std::env;
 use std::time::Instant;
 
 use flaregun::{
+    CloudScraper, CloudScraperBuilder, RequestOptions, StealthConfig,
     captcha::CaptchaConfig,
     proxy_manager::RotationStrategy,
     user_agent::{Browser, UserAgentOptions},
-    CloudScraper, CloudScraperBuilder, RequestOptions, StealthConfig,
 };
 
 // ── Target URLs ───────────────────────────────────────────────────────────────
@@ -53,8 +53,14 @@ const COOKIES_URL: &str = "https://httpbin.org/cookies/set?session=flaregun&them
 
 #[tokio::main]
 async fn main() {
-    // Initialise pretty logging — set RUST_LOG=debug for verbose output.
-    env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("info")).init();
+    // Initialise structured tracing — set RUST_LOG=flaregun=debug for verbose output.
+    tracing_subscriber::fmt()
+        .with_env_filter(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| tracing_subscriber::EnvFilter::new("flaregun=info")),
+        )
+        .with_target(false)
+        .init();
 
     let section = env::args().nth(1).unwrap_or_else(|| "all".to_string());
 
@@ -357,8 +363,8 @@ async fn example_debug() {
     print_header("6 · Debug Mode & Response Metadata");
 
     let mut scraper = CloudScraperBuilder::new()
-        // Debug mode emits detailed per-request log lines via the `log` crate.
-        // Set RUST_LOG=debug to see them in the terminal.
+        // Debug mode wires up the tracing subscriber at debug level.
+        // Set RUST_LOG=flaregun=debug to see span events in the terminal.
         .debug(true)
         // Demonstrate disabling specific challenge types.
         .disable_v1(false)

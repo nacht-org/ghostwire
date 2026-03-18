@@ -3,12 +3,11 @@
 use std::process;
 
 use clap::{Arg, ArgAction, Command};
-use flaregun::{captcha::CaptchaConfig, CloudScraperBuilder, StealthConfig};
+use flaregun::{CloudScraperBuilder, StealthConfig, captcha::CaptchaConfig};
+use tracing_subscriber::{EnvFilter, fmt};
 
 #[tokio::main]
 async fn main() {
-    env_logger::init();
-
     let matches = Command::new("flaregun")
         .version(flaregun::VERSION)
         .about("Bypass Cloudflare anti-bot protection from the command line")
@@ -53,6 +52,22 @@ async fn main() {
 
     let url = matches.get_one::<String>("url").unwrap();
     let debug = matches.get_flag("debug");
+
+    // ── Logging / tracing ──────────────────────────────────────────────────────
+    // Respect RUST_LOG if set; otherwise fall back to `debug` when --debug is
+    // passed, or `info` for normal operation.  Using tracing-subscriber gives us
+    // structured, span-aware output that env_logger cannot provide.
+    let default_level = if debug {
+        "flaregun=debug"
+    } else {
+        "flaregun=info"
+    };
+    let filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_level));
+    fmt()
+        .with_env_filter(filter)
+        .with_target(false) // omit module path – the span name is enough
+        .init();
 
     // ── Captcha ───────────────────────────────────────────────────────────────
     let captcha = match (

@@ -49,9 +49,9 @@ rand = "0.8"
 thiserror = "1"
 anyhow = "1"
 
-# Logging
-log = "0.4"
-env_logger = "0.11"
+# Tracing (structured, async-aware observability)
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
 
 # Time utilities
 chrono = { version = "0.4", features = ["serde"] }
