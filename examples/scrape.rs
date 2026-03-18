@@ -1,4 +1,4 @@
-//! # cloudscraper-rs — Comprehensive Usage Example
+//! # flaregun — Comprehensive Usage Example
 //!
 //! This example walks through the major features of the library:
 //!
@@ -29,11 +29,11 @@
 use std::env;
 use std::time::Instant;
 
-use cloudscraper::{
-    CloudScraper, CloudScraperBuilder, RequestOptions, StealthConfig,
+use flaregun::{
     captcha::CaptchaConfig,
     proxy_manager::RotationStrategy,
     user_agent::{Browser, UserAgentOptions},
+    CloudScraper, CloudScraperBuilder, RequestOptions, StealthConfig,
 };
 
 // ── Target URLs ───────────────────────────────────────────────────────────────
@@ -47,7 +47,7 @@ const BASIC_URL: &str = "https://httpbin.org/get";
 const POST_URL: &str = "https://httpbin.org/post";
 const HEADERS_URL: &str = "https://httpbin.org/headers";
 const STATUS_URL: &str = "https://httpbin.org/status/200";
-const COOKIES_URL: &str = "https://httpbin.org/cookies/set?session=cloudscraper-rs&theme=dark";
+const COOKIES_URL: &str = "https://httpbin.org/cookies/set?session=flaregun&theme=dark";
 
 // ── Entry point ───────────────────────────────────────────────────────────────
 
@@ -59,7 +59,7 @@ async fn main() {
     let section = env::args().nth(1).unwrap_or_else(|| "all".to_string());
 
     println!("\n╔══════════════════════════════════════════════╗");
-    println!("║        cloudscraper-rs  —  examples          ║");
+    println!("║           flaregun  —  examples              ║");
     println!("╚══════════════════════════════════════════════╝\n");
 
     match section.as_str() {
@@ -321,7 +321,7 @@ async fn example_post() {
     let mut scraper = CloudScraper::new().expect("Failed to create scraper");
 
     let form_fields = vec![
-        ("username".to_string(), "cloudscraper".to_string()),
+        ("username".to_string(), "flaregun".to_string()),
         ("language".to_string(), "rust".to_string()),
         ("version".to_string(), env!("CARGO_PKG_VERSION").to_string()),
     ];
@@ -392,7 +392,7 @@ async fn example_debug() {
 
     // Demonstrate a raw bytes POST body (non-form).
     let json_body = serde_json::json!({
-        "library": "cloudscraper-rs",
+        "library": "flaregun",
         "language": "Rust",
         "async": true,
     });

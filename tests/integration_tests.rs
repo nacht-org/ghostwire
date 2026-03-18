@@ -1,10 +1,9 @@
-//! Integration tests for cloudscraper-rs.
+//! Integration tests for flaregun.
 //!
 //! These tests use `wiremock` to simulate Cloudflare challenge pages locally
 //! without making real network requests.
 
-use cloudscraper::{
-    CloudScraper, CloudScraperBuilder,
+use flaregun::{
     challenge::{
         turnstile::CloudflareTurnstile,
         v1::{CloudflareV1, V1ChallengeKind},
@@ -14,6 +13,7 @@ use cloudscraper::{
     proxy_manager::{ProxyManager, RotationStrategy},
     stealth::{StealthConfig, StealthState},
     user_agent::{Browser, UserAgent, UserAgentOptions},
+    CloudScraper, CloudScraperBuilder,
 };
 
 // ── User-Agent tests ──────────────────────────────────────────────────────────

@@ -1,16 +1,16 @@
-//! Command-line interface for cloudscraper-rs.
+//! Command-line interface for flaregun.
 
 use std::process;
 
 use clap::{Arg, ArgAction, Command};
-use cloudscraper::{CloudScraperBuilder, StealthConfig, captcha::CaptchaConfig};
+use flaregun::{captcha::CaptchaConfig, CloudScraperBuilder, StealthConfig};
 
 #[tokio::main]
 async fn main() {
     env_logger::init();
 
-    let matches = Command::new("cloudscraper")
-        .version(cloudscraper::VERSION)
+    let matches = Command::new("flaregun")
+        .version(flaregun::VERSION)
         .about("Bypass Cloudflare anti-bot protection from the command line")
         .arg(Arg::new("url").required(true).help("URL to fetch"))
         .arg(
@@ -106,7 +106,7 @@ async fn main() {
     };
 
     match scraper
-        .request(method, url, cloudscraper::RequestOptions::default())
+        .request(method, url, flaregun::RequestOptions::default())
         .await
     {
         Ok(resp) => {

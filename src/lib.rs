@@ -1,11 +1,11 @@
-//! # cloudscraper-rs
+//! # flaregun
 //!
 //! A Rust library to bypass Cloudflare's anti-bot protections.
 //!
 //! ## Quick start
 //!
 //! ```rust,no_run
-//! use cloudscraper::CloudScraper;
+//! use flaregun::CloudScraper;
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {
@@ -19,7 +19,7 @@
 //! ## With captcha solver
 //!
 //! ```rust,no_run
-//! use cloudscraper::{CloudScraper, captcha::CaptchaConfig};
+//! use flaregun::{CloudScraper, captcha::CaptchaConfig};
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {
