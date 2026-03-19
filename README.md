@@ -57,12 +57,12 @@ tokio = { version = "1", features = ["full"] }
 ## Quick Start
 
 ```rust
-use ghostwire::CloudScraper;
+use ghostwire::Ghostwire;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let mut scraper = CloudScraper::new()?;
-    let resp = scraper.get("https://example.com").await?;
+    let mut ghostwire = Ghostwire::new()?;
+    let resp = ghostwire.get("https://example.com").await?;
     println!("Status: {}", resp.status());
     println!("{}", resp.text().await?);
     Ok(())
@@ -78,7 +78,7 @@ async fn main() -> anyhow::Result<()> {
 Required when Cloudflare serves a challenge that cannot be solved algorithmically.
 
 ```rust
-use ghostwire::{CloudScraper, captcha::CaptchaConfig};
+use ghostwire::{Ghostwire, captcha::CaptchaConfig};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -88,12 +88,12 @@ async fn main() -> anyhow::Result<()> {
         ..Default::default()
     };
 
-    let mut scraper = CloudScraper::builder()
+    let mut ghostwire = Ghostwire::builder()
         .captcha(captcha)
         .debug(true)
         .build()?;
 
-    let resp = scraper.get("https://protected.example.com").await?;
+    let resp = ghostwire.get("https://protected.example.com").await?;
     println!("{}", resp.text().await?);
     Ok(())
 }
@@ -102,11 +102,11 @@ async fn main() -> anyhow::Result<()> {
 ### With proxy rotation
 
 ```rust
-use ghostwire::{CloudScraper, proxy_manager::RotationStrategy};
+use ghostwire::{Ghostwire, proxy_manager::RotationStrategy};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    let mut scraper = CloudScraper::builder()
+    let mut ghostwire = Ghostwire::builder()
         .proxies(vec![
             "http://proxy1.example.com:8080".into(),
             "http://proxy2.example.com:8080".into(),
@@ -116,7 +116,7 @@ async fn main() -> anyhow::Result<()> {
         .proxy_ban_secs(120)
         .build()?;
 
-    let resp = scraper.get("https://example.com").await?;
+    let resp = ghostwire.get("https://example.com").await?;
     println!("{}", resp.status());
     Ok(())
 }
@@ -127,7 +127,7 @@ async fn main() -> anyhow::Result<()> {
 Stealth mode is enabled by default. Delays and header randomisation can be tuned:
 
 ```rust
-use ghostwire::{CloudScraper, StealthConfig};
+use ghostwire::{Ghostwire, StealthConfig};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -140,11 +140,11 @@ async fn main() -> anyhow::Result<()> {
         max_delay_secs: 4.0,
     };
 
-    let mut scraper = CloudScraper::builder()
+    let mut ghostwire = Ghostwire::builder()
         .stealth(stealth)
         .build()?;
 
-    let resp = scraper.get("https://example.com").await?;
+    let resp = ghostwire.get("https://example.com").await?;
     println!("{}", resp.status());
     Ok(())
 }
@@ -153,7 +153,7 @@ async fn main() -> anyhow::Result<()> {
 ### Custom browser / user-agent
 
 ```rust
-use ghostwire::{CloudScraper, user_agent::{Browser, UserAgentOptions}};
+use ghostwire::{Ghostwire, user_agent::{Browser, UserAgentOptions}};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -166,11 +166,11 @@ async fn main() -> anyhow::Result<()> {
         ..Default::default()
     };
 
-    let mut scraper = CloudScraper::builder()
+    let mut ghostwire = Ghostwire::builder()
         .user_agent_opts(ua_opts)
         .build()?;
 
-    let resp = scraper.get("https://example.com").await?;
+    let resp = ghostwire.get("https://example.com").await?;
     println!("{}", resp.status());
     Ok(())
 }
@@ -179,7 +179,7 @@ async fn main() -> anyhow::Result<()> {
 ### Selectively disabling challenge handlers
 
 ```rust
-let mut scraper = CloudScraper::builder()
+let mut ghostwire = Ghostwire::builder()
     .disable_v1(true)        // skip legacy IUAM
     .disable_v2(true)        // skip v2 JS / managed challenges
     .disable_v3(true)        // skip v3 JavaScript VM challenges
@@ -191,7 +191,7 @@ let mut scraper = CloudScraper::builder()
 
 ```rust
 // URL-encoded form
-scraper.post_form("https://example.com/login", vec![
+ghostwire.post_form("https://example.com/login", vec![
     ("user".into(), "alice".into()),
     ("pass".into(), "hunter2".into()),
 ]).await?;
@@ -199,7 +199,7 @@ scraper.post_form("https://example.com/login", vec![
 // Raw bytes
 use bytes::Bytes;
 let body = Bytes::from(r#"{"key":"value"}"#);
-scraper.post_bytes("https://api.example.com/data", body).await?;
+ghostwire.post_bytes("https://api.example.com/data", body).await?;
 ```
 
 ---
@@ -281,8 +281,8 @@ All three providers support reCAPTCHA v2, hCaptcha, and Cloudflare Turnstile. Pr
 src/
 ├── lib.rs              # Crate root and public re-exports
 ├── main.rs             # CLI binary (clap)
-├── error.rs            # CloudscraperError enum (thiserror)
-├── client.rs           # CloudScraper + CloudScraperBuilder
+├── error.rs            # GhostwireError enum (thiserror)
+├── client.rs           # Ghostwire + GhostwireBuilder
 ├── user_agent.rs       # Browser fingerprint selection (browsers.json)
 ├── proxy_manager.rs    # Proxy pool and rotation strategies
 ├── stealth.rs          # Delays, header randomisation, browser quirks
