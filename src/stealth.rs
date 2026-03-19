@@ -48,15 +48,17 @@ impl StealthState {
     /// Block until the human-like delay has elapsed, then record this request.
     pub async fn pre_request(&mut self) {
         if self.config.enabled && self.config.human_like_delays && self.request_count > 0 {
-            let mut rng = rand::rng();
-            let mut delay =
-                rng.random_range(self.config.min_delay_secs..=self.config.max_delay_secs);
+            let delay = {
+                let mut rng = rand::rng();
+                let mut d =
+                    rng.random_range(self.config.min_delay_secs..=self.config.max_delay_secs);
 
-            // 10% chance of a slightly longer pause.
-            if rng.random_bool(0.1) {
-                delay *= 1.5;
-            }
-            delay = delay.min(10.0);
+                // 10% chance of a slightly longer pause.
+                if rng.random_bool(0.1) {
+                    d *= 1.5;
+                }
+                d.min(10.0)
+            };
 
             if delay >= 0.1 {
                 tokio::time::sleep(Duration::from_secs_f64(delay)).await;
