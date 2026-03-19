@@ -1,4 +1,4 @@
-//! Core `CloudScraper` client – wraps `reqwest` with Cloudflare bypass logic.
+//! Core `Flaregun` client – wraps `reqwest` with Cloudflare bypass logic.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -15,16 +15,16 @@ use crate::challenge::turnstile::CloudflareTurnstile;
 use crate::challenge::v1::{CloudflareV1, V1ChallengeKind};
 use crate::challenge::v2::CloudflareV2;
 use crate::challenge::v3::CloudflareV3;
-use crate::error::{CloudscraperError, Result};
+use crate::error::{FlaregunError, Result};
 use crate::proxy_manager::{ProxyManager, RotationStrategy};
 use crate::stealth::{StealthConfig, StealthState};
 use crate::user_agent::{UserAgent, UserAgentOptions};
 
 // ── Builder ───────────────────────────────────────────────────────────────────
 
-/// Fluent builder for `CloudScraper`.
+/// Fluent builder for `Flaregun`.
 #[derive(Debug, Clone)]
-pub struct CloudScraperBuilder {
+pub struct FlaregunBuilder {
     // Challenge control
     pub disable_v1: bool,
     pub disable_v2: bool,
@@ -66,9 +66,9 @@ pub struct CloudScraperBuilder {
     pub debug: bool,
 }
 
-impl Default for CloudScraperBuilder {
+impl Default for FlaregunBuilder {
     fn default() -> Self {
-        CloudScraperBuilder {
+        FlaregunBuilder {
             disable_v1: false,
             disable_v2: false,
             disable_v3: false,
@@ -96,7 +96,7 @@ impl Default for CloudScraperBuilder {
     }
 }
 
-impl CloudScraperBuilder {
+impl FlaregunBuilder {
     pub fn new() -> Self {
         Self::default()
     }
@@ -178,8 +178,8 @@ impl CloudScraperBuilder {
         self
     }
 
-    /// Consume the builder and produce a `CloudScraper`.
-    pub fn build(self) -> Result<CloudScraper> {
+    /// Consume the builder and produce a `Flaregun`.
+    pub fn build(self) -> Result<Flaregun> {
         let ua = UserAgent::new(&self.user_agent_opts)?;
 
         let default_headers = ua.header_map();
@@ -191,7 +191,7 @@ impl CloudScraperBuilder {
             .brotli(self.user_agent_opts.allow_brotli)
             .deflate(true)
             .build()
-            .map_err(CloudscraperError::HttpError)?;
+            .map_err(FlaregunError::HttpError)?;
 
         let proxy_manager = ProxyManager::new(
             self.proxies.clone(),
@@ -201,7 +201,7 @@ impl CloudScraperBuilder {
 
         let stealth_state = StealthState::new(self.stealth.clone());
 
-        Ok(CloudScraper {
+        Ok(Flaregun {
             client,
             user_agent: ua,
             config: Arc::new(self),
@@ -216,13 +216,13 @@ impl CloudScraperBuilder {
     }
 }
 
-// ── CloudScraper ──────────────────────────────────────────────────────────────
+// ── Flaregun ──────────────────────────────────────────────────────────────
 
 /// A Cloudflare-aware async HTTP client.
-pub struct CloudScraper {
+pub struct Flaregun {
     pub(crate) client: reqwest::Client,
     pub(crate) user_agent: UserAgent,
-    pub(crate) config: Arc<CloudScraperBuilder>,
+    pub(crate) config: Arc<FlaregunBuilder>,
     #[allow(dead_code)]
     pub(crate) proxy_manager: Arc<Mutex<ProxyManager>>,
     pub(crate) stealth: Arc<Mutex<StealthState>>,
@@ -237,15 +237,15 @@ pub struct CloudScraper {
     retry_403_count: usize,
 }
 
-impl CloudScraper {
-    /// Create a `CloudScraper` with sensible defaults.
+impl Flaregun {
+    /// Create a `Flaregun` with sensible defaults.
     pub fn new() -> Result<Self> {
-        CloudScraperBuilder::new().build()
+        FlaregunBuilder::new().build()
     }
 
     /// Return a fluent builder.
-    pub fn builder() -> CloudScraperBuilder {
-        CloudScraperBuilder::new()
+    pub fn builder() -> FlaregunBuilder {
+        FlaregunBuilder::new()
     }
 
     // ── Convenience HTTP methods ──────────────────────────────────────────────
@@ -321,14 +321,14 @@ impl CloudScraper {
         if self.solve_depth >= self.config.solve_depth {
             let depth = self.solve_depth;
             self.solve_depth = 0;
-            return Err(CloudscraperError::LoopProtection(depth));
+            return Err(FlaregunError::LoopProtection(depth));
         }
 
         // Collect body text for challenge detection (consumes the response).
         let body = response
             .text()
             .await
-            .map_err(CloudscraperError::HttpError)?;
+            .map_err(FlaregunError::HttpError)?;
 
         // ── Turnstile ────────────────────────────────────────────────────────
         if !self.config.disable_turnstile
@@ -364,10 +364,10 @@ impl CloudScraper {
         if !self.config.disable_v1 {
             match CloudflareV1::classify(status, &server, &body) {
                 Some(V1ChallengeKind::Firewall1020) => {
-                    return Err(CloudscraperError::FirewallBlocked);
+                    return Err(FlaregunError::FirewallBlocked);
                 }
                 Some(V1ChallengeKind::NewIUAM) | Some(V1ChallengeKind::NewCaptcha) => {
-                    return Err(CloudscraperError::ChallengeError(
+                    return Err(FlaregunError::ChallengeError(
                         "Detected a Cloudflare v2 challenge – configure a captcha provider.".into(),
                     ));
                 }
@@ -445,7 +445,7 @@ impl CloudScraper {
             // reqwest's RequestBuilder doesn't expose a per-request redirect
             // override, so we build a one-shot client with redirects disabled,
             // then replay the already-configured request through it.
-            let built = req.build().map_err(CloudscraperError::HttpError)?;
+            let built = req.build().map_err(FlaregunError::HttpError)?;
             let method = built.method().clone();
             let url = built.url().clone();
 
@@ -453,16 +453,16 @@ impl CloudScraper {
                 .cookie_store(true)
                 .redirect(reqwest::redirect::Policy::none())
                 .build()
-                .map_err(CloudscraperError::HttpError)?;
+                .map_err(FlaregunError::HttpError)?;
 
             return no_redirect_client
                 .request(method, url)
                 .send()
                 .await
-                .map_err(CloudscraperError::HttpError);
+                .map_err(FlaregunError::HttpError);
         }
 
-        req.send().await.map_err(CloudscraperError::HttpError)
+        req.send().await.map_err(FlaregunError::HttpError)
     }
 
     // ── Throttle ──────────────────────────────────────────────────────────────
@@ -526,7 +526,7 @@ impl CloudScraper {
         _opts: RequestOptions,
     ) -> Result<Response> {
         let captcha_cfg = self.config.captcha.as_ref().ok_or_else(|| {
-            CloudscraperError::CaptchaProviderMissing(
+            FlaregunError::CaptchaProviderMissing(
                 "No captcha provider configured for v1 captcha challenge.".into(),
             )
         })?;
@@ -536,7 +536,7 @@ impl CloudScraper {
         }
 
         let solver = make_solver(captcha_cfg).ok_or_else(|| {
-            CloudscraperError::CaptchaProviderMissing(format!(
+            FlaregunError::CaptchaProviderMissing(format!(
                 "Unknown captcha provider: {}",
                 captcha_cfg.provider
             ))
@@ -551,7 +551,7 @@ impl CloudScraper {
             RE_SITEKEY
                 .captures(body)
                 .map(|c| c.get(1).unwrap().as_str().to_string())
-                .ok_or_else(|| CloudscraperError::CaptchaError("Cannot find site key".into()))?
+                .ok_or_else(|| FlaregunError::CaptchaError("Cannot find site key".into()))?
         };
 
         let token = solver
@@ -571,7 +571,7 @@ impl CloudScraper {
             RE_FORM
                 .captures(body)
                 .and_then(|c| c.name("uuid").map(|m| m.as_str().to_string()))
-                .ok_or_else(|| CloudscraperError::CaptchaError("Cannot find captcha form".into()))?
+                .ok_or_else(|| FlaregunError::CaptchaError("Cannot find captcha form".into()))?
         };
 
         let parsed = Url::parse(page_url)?;
@@ -643,11 +643,11 @@ impl CloudScraper {
         _opts: RequestOptions,
     ) -> Result<Response> {
         let captcha_cfg = self.config.captcha.as_ref().ok_or_else(|| {
-            CloudscraperError::CaptchaProviderMissing("No captcha provider configured".into())
+            FlaregunError::CaptchaProviderMissing("No captcha provider configured".into())
         })?;
 
         let solver = make_solver(captcha_cfg).ok_or_else(|| {
-            CloudscraperError::CaptchaProviderMissing(format!(
+            FlaregunError::CaptchaProviderMissing(format!(
                 "Unknown captcha provider: {}",
                 captcha_cfg.provider
             ))
@@ -688,7 +688,7 @@ impl CloudScraper {
         let challenge_data = CloudflareV3::extract_challenge_data(body);
 
         let action = challenge_data.form_action.as_deref().ok_or_else(|| {
-            CloudscraperError::V3Error("Cannot find v3 challenge form action".into())
+            FlaregunError::V3Error("Cannot find v3 challenge form action".into())
         })?;
         let submit_url = CloudflareV3::resolve_url(page_url, action)?;
 
@@ -724,13 +724,13 @@ impl CloudScraper {
         _opts: RequestOptions,
     ) -> Result<Response> {
         let captcha_cfg = self.config.captcha.as_ref().ok_or_else(|| {
-            CloudscraperError::CaptchaProviderMissing(
+            FlaregunError::CaptchaProviderMissing(
                 "Turnstile detected but no captcha provider configured.".into(),
             )
         })?;
 
         let solver = make_solver(captcha_cfg).ok_or_else(|| {
-            CloudscraperError::CaptchaProviderMissing(format!(
+            FlaregunError::CaptchaProviderMissing(format!(
                 "Unknown captcha provider: {}",
                 captcha_cfg.provider
             ))
@@ -769,7 +769,7 @@ impl CloudScraper {
 
 // ── RequestOptions ────────────────────────────────────────────────────────────
 
-/// Per-request options passed to `CloudScraper::request`.
+/// Per-request options passed to `Flaregun::request`.
 #[derive(Default)]
 pub struct RequestOptions {
     /// Extra headers merged on top of defaults.
@@ -798,6 +798,6 @@ fn build_text_response(status: u16, headers: HeaderMap, body: String) -> Result<
     }
     let http_resp = builder
         .body(body_bytes)
-        .map_err(|e| CloudscraperError::Other(e.to_string()))?;
+        .map_err(|e| FlaregunError::Other(e.to_string()))?;
     Ok(reqwest::Response::from(http_resp))
 }

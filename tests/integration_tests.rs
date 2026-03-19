@@ -4,6 +4,7 @@
 //! without making real network requests.
 
 use flaregun::{
+    Flaregun, FlaregunBuilder,
     challenge::{
         turnstile::CloudflareTurnstile,
         v1::{CloudflareV1, V1ChallengeKind},
@@ -13,7 +14,6 @@ use flaregun::{
     proxy_manager::{ProxyManager, RotationStrategy},
     stealth::{StealthConfig, StealthState},
     user_agent::{Browser, UserAgent, UserAgentOptions},
-    CloudScraper, CloudScraperBuilder,
 };
 
 // ── User-Agent tests ──────────────────────────────────────────────────────────
@@ -313,8 +313,11 @@ fn v3_detection() {
 
 #[test]
 fn build_default_scraper() {
-    let scraper = CloudScraper::new();
-    assert!(scraper.is_ok(), "Default scraper should build successfully");
+    let flaregun = Flaregun::new();
+    assert!(
+        flaregun.is_ok(),
+        "Default flaregun should build successfully"
+    );
 }
 
 #[test]
@@ -325,8 +328,8 @@ fn build_with_custom_ua() {
         mobile: true,
         ..Default::default()
     };
-    let scraper = CloudScraperBuilder::new().user_agent_opts(opts).build();
-    assert!(scraper.is_ok());
+    let flaregun = FlaregunBuilder::new().user_agent_opts(opts).build();
+    assert!(flaregun.is_ok());
 }
 
 #[test]
@@ -335,8 +338,8 @@ fn build_with_stealth_disabled() {
         enabled: false,
         ..Default::default()
     };
-    let scraper = CloudScraperBuilder::new().stealth(stealth).build();
-    assert!(scraper.is_ok());
+    let flaregun = FlaregunBuilder::new().stealth(stealth).build();
+    assert!(flaregun.is_ok());
 }
 
 // ── Stealth mode tests ────────────────────────────────────────────────────────

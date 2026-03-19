@@ -6,7 +6,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 use super::{CaptchaConfig, CaptchaKind, CaptchaSolver};
-use crate::error::{CloudscraperError, Result};
+use crate::error::{FlaregunError, Result};
 
 const HOST: &str = "https://api.capsolver.com";
 const APP_ID: &str = "9E717405-8C70-49B3-B277-7C2F2196484B";
@@ -85,14 +85,14 @@ impl CapsolverSolver {
             .json(&body)
             .send()
             .await
-            .map_err(CloudscraperError::HttpError)?
+            .map_err(FlaregunError::HttpError)?
             .json()
             .await
-            .map_err(CloudscraperError::HttpError)?;
+            .map_err(FlaregunError::HttpError)?;
 
         if let Some(err) = resp["errorDescription"].as_str() {
             if !err.is_empty() && !err.contains("Current system busy") {
-                return Err(CloudscraperError::CaptchaAPIError(err.to_string()));
+                return Err(FlaregunError::CaptchaAPIError(err.to_string()));
             }
         }
 
@@ -100,7 +100,7 @@ impl CapsolverSolver {
             .as_str()
             .map(|s| s.to_string())
             .or_else(|| resp["taskId"].as_u64().map(|n| n.to_string()))
-            .ok_or_else(|| CloudscraperError::CaptchaBadJobID("capsolver: no taskId".into()))
+            .ok_or_else(|| FlaregunError::CaptchaBadJobID("capsolver: no taskId".into()))
     }
 
     async fn poll_result(&self, task_id: &str, api_key: &str) -> Result<String> {
@@ -110,7 +110,7 @@ impl CapsolverSolver {
             sleep(POLL_INTERVAL).await;
 
             if tokio::time::Instant::now() > deadline {
-                return Err(CloudscraperError::CaptchaTimeout(format!(
+                return Err(FlaregunError::CaptchaTimeout(format!(
                     "capsolver: task {task_id} timed out"
                 )));
             }
@@ -126,14 +126,14 @@ impl CapsolverSolver {
                 .json(&body)
                 .send()
                 .await
-                .map_err(CloudscraperError::HttpError)?
+                .map_err(FlaregunError::HttpError)?
                 .json()
                 .await
-                .map_err(CloudscraperError::HttpError)?;
+                .map_err(FlaregunError::HttpError)?;
 
             if let Some(err) = resp["errorDescription"].as_str() {
                 if !err.is_empty() && !err.contains("Current system busy") {
-                    return Err(CloudscraperError::CaptchaAPIError(err.to_string()));
+                    return Err(FlaregunError::CaptchaAPIError(err.to_string()));
                 }
             }
 
@@ -145,7 +145,7 @@ impl CapsolverSolver {
                 if let Some(token) = solution["gRecaptchaResponse"].as_str() {
                     return Ok(token.to_string());
                 }
-                return Err(CloudscraperError::CaptchaAPIError(
+                return Err(FlaregunError::CaptchaAPIError(
                     "capsolver: no token in solution".into(),
                 ));
             }
@@ -163,7 +163,7 @@ impl CaptchaSolver for CapsolverSolver {
         config: &CaptchaConfig,
     ) -> Result<String> {
         let api_key = config.api_key.as_deref().ok_or_else(|| {
-            CloudscraperError::CaptchaParameter("capsolver: missing api_key".into())
+            FlaregunError::CaptchaParameter("capsolver: missing api_key".into())
         })?;
 
         let proxy = if config.no_proxy {

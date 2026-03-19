@@ -6,7 +6,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 use super::{CaptchaConfig, CaptchaKind, CaptchaSolver};
-use crate::error::{CloudscraperError, Result};
+use crate::error::{FlaregunError, Result};
 
 const HOST: &str = "https://2captcha.com";
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
@@ -72,16 +72,16 @@ impl TwoCaptchaSolver {
             .form(&params)
             .send()
             .await
-            .map_err(CloudscraperError::HttpError)?
+            .map_err(FlaregunError::HttpError)?
             .json()
             .await
-            .map_err(CloudscraperError::HttpError)?;
+            .map_err(FlaregunError::HttpError)?;
 
         if resp.status == 1 {
             resp.request
-                .ok_or_else(|| CloudscraperError::CaptchaBadJobID("2captcha: no job id".into()))
+                .ok_or_else(|| FlaregunError::CaptchaBadJobID("2captcha: no job id".into()))
         } else {
-            Err(CloudscraperError::CaptchaAPIError(
+            Err(FlaregunError::CaptchaAPIError(
                 resp.request.unwrap_or_else(|| "unknown error".into()),
             ))
         }
@@ -94,7 +94,7 @@ impl TwoCaptchaSolver {
             sleep(POLL_INTERVAL).await;
 
             if tokio::time::Instant::now() > deadline {
-                return Err(CloudscraperError::CaptchaTimeout(format!(
+                return Err(FlaregunError::CaptchaTimeout(format!(
                     "2captcha: job {job_id} timed out"
                 )));
             }
@@ -110,14 +110,14 @@ impl TwoCaptchaSolver {
                 ])
                 .send()
                 .await
-                .map_err(CloudscraperError::HttpError)?
+                .map_err(FlaregunError::HttpError)?
                 .json()
                 .await
-                .map_err(CloudscraperError::HttpError)?;
+                .map_err(FlaregunError::HttpError)?;
 
             if resp.status == 1 {
                 return resp.request.ok_or_else(|| {
-                    CloudscraperError::CaptchaAPIError("2captcha: empty result".into())
+                    FlaregunError::CaptchaAPIError("2captcha: empty result".into())
                 });
             }
 
@@ -126,7 +126,7 @@ impl TwoCaptchaSolver {
                 continue;
             }
 
-            return Err(CloudscraperError::CaptchaAPIError(
+            return Err(FlaregunError::CaptchaAPIError(
                 resp.request.unwrap_or_else(|| "unknown error".into()),
             ));
         }
@@ -143,7 +143,7 @@ impl CaptchaSolver for TwoCaptchaSolver {
         config: &CaptchaConfig,
     ) -> Result<String> {
         let api_key = config.api_key.as_deref().ok_or_else(|| {
-            CloudscraperError::CaptchaParameter("2captcha: missing api_key".into())
+            FlaregunError::CaptchaParameter("2captcha: missing api_key".into())
         })?;
 
         let proxy = if config.no_proxy {

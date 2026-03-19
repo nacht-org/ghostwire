@@ -1,10 +1,10 @@
-//! Error types for cloudscraper-rs.
+//! Error types for flaregun.
 
 use thiserror::Error;
 
 /// Top-level error type.
 #[derive(Debug, Error)]
-pub enum CloudscraperError {
+pub enum FlaregunError {
     // ── Cloudflare challenge errors ───────────────────────────────────────────
     #[error("Cloudflare loop protection: tried to solve {0} time(s) in a row")]
     LoopProtection(usize),
@@ -77,4 +77,4 @@ pub enum CloudscraperError {
     Other(String),
 }
 
-pub type Result<T> = std::result::Result<T, CloudscraperError>;
+pub type Result<T> = std::result::Result<T, FlaregunError>;

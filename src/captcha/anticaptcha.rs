@@ -7,7 +7,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 use super::{CaptchaConfig, CaptchaKind, CaptchaSolver};
-use crate::error::{CloudscraperError, Result};
+use crate::error::{FlaregunError, Result};
 
 const HOST: &str = "https://api.anti-captcha.com";
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
@@ -97,10 +97,10 @@ impl AntiCaptchaSolver {
             .json(&body)
             .send()
             .await
-            .map_err(CloudscraperError::HttpError)?
+            .map_err(FlaregunError::HttpError)?
             .json()
             .await
-            .map_err(CloudscraperError::HttpError)?;
+            .map_err(FlaregunError::HttpError)?;
 
         let error_id = resp["errorId"].as_u64().unwrap_or(0);
         if error_id != 0 {
@@ -108,12 +108,12 @@ impl AntiCaptchaSolver {
                 .as_str()
                 .unwrap_or("unknown error")
                 .to_string();
-            return Err(CloudscraperError::CaptchaAPIError(msg));
+            return Err(FlaregunError::CaptchaAPIError(msg));
         }
 
         resp["taskId"]
             .as_u64()
-            .ok_or_else(|| CloudscraperError::CaptchaBadJobID("anticaptcha: no taskId".into()))
+            .ok_or_else(|| FlaregunError::CaptchaBadJobID("anticaptcha: no taskId".into()))
     }
 
     async fn poll_result(&self, task_id: u64, client_key: &str) -> Result<String> {
@@ -123,7 +123,7 @@ impl AntiCaptchaSolver {
             sleep(POLL_INTERVAL).await;
 
             if tokio::time::Instant::now() > deadline {
-                return Err(CloudscraperError::CaptchaTimeout(format!(
+                return Err(FlaregunError::CaptchaTimeout(format!(
                     "anticaptcha: task {task_id} timed out"
                 )));
             }
@@ -139,10 +139,10 @@ impl AntiCaptchaSolver {
                 .json(&body)
                 .send()
                 .await
-                .map_err(CloudscraperError::HttpError)?
+                .map_err(FlaregunError::HttpError)?
                 .json()
                 .await
-                .map_err(CloudscraperError::HttpError)?;
+                .map_err(FlaregunError::HttpError)?;
 
             let error_id = resp["errorId"].as_u64().unwrap_or(0);
             if error_id != 0 {
@@ -150,7 +150,7 @@ impl AntiCaptchaSolver {
                     .as_str()
                     .unwrap_or("unknown error")
                     .to_string();
-                return Err(CloudscraperError::CaptchaAPIError(msg));
+                return Err(FlaregunError::CaptchaAPIError(msg));
             }
 
             if resp["status"].as_str() == Some("ready") {
@@ -161,7 +161,7 @@ impl AntiCaptchaSolver {
                 if let Some(token) = solution["gRecaptchaResponse"].as_str() {
                     return Ok(token.to_string());
                 }
-                return Err(CloudscraperError::CaptchaAPIError(
+                return Err(FlaregunError::CaptchaAPIError(
                     "anticaptcha: no token in solution".into(),
                 ));
             }
@@ -184,7 +184,7 @@ impl CaptchaSolver for AntiCaptchaSolver {
             .as_deref()
             .or(config.api_key.as_deref())
             .ok_or_else(|| {
-                CloudscraperError::CaptchaParameter("anticaptcha: missing clientKey".into())
+                FlaregunError::CaptchaParameter("anticaptcha: missing clientKey".into())
             })?;
 
         let proxy = if config.no_proxy {

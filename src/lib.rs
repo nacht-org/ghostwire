@@ -5,11 +5,11 @@
 //! ## Quick start
 //!
 //! ```rust,no_run
-//! use flaregun::CloudScraper;
+//! use flaregun::Flaregun;
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {
-//!     let mut scraper = CloudScraper::new()?;
+//!     let mut scraper = Flaregun::new()?;
 //!     let resp = scraper.get("https://example.com").await?;
 //!     println!("Status: {}", resp.status());
 //!     Ok(())
@@ -19,7 +19,7 @@
 //! ## With captcha solver
 //!
 //! ```rust,no_run
-//! use flaregun::{CloudScraper, captcha::CaptchaConfig};
+//! use flaregun::{Flaregun, captcha::CaptchaConfig};
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {
@@ -29,7 +29,7 @@
 //!         ..Default::default()
 //!     };
 //!
-//!     let mut scraper = CloudScraper::builder()
+//!     let mut scraper = Flaregun::builder()
 //!         .captcha(captcha)
 //!         .debug(true)
 //!         .build()?;
@@ -50,8 +50,8 @@ pub mod user_agent;
 
 // Top-level re-exports.
 pub use captcha::{CaptchaConfig, CaptchaKind};
-pub use client::{CloudScraper, CloudScraperBuilder, RequestOptions};
-pub use error::{CloudscraperError, Result};
+pub use client::{Flaregun, FlaregunBuilder, RequestOptions};
+pub use error::{FlaregunError, Result};
 pub use proxy_manager::{ProxyManager, RotationStrategy};
 pub use stealth::StealthConfig;
 pub use user_agent::{Browser, UserAgent, UserAgentOptions};

@@ -16,7 +16,8 @@
 
 use std::process;
 
-use flaregun::{CloudScraperBuilder, RequestOptions, StealthConfig, captcha::CaptchaConfig};
+use flaregun::{FlaregunBuilder, RequestOptions, StealthConfig, captcha::CaptchaConfig};
+use reqwest;
 use tracing_subscriber::{EnvFilter, fmt};
 
 fn print_usage() {
@@ -150,9 +151,7 @@ async fn main() {
         ..Default::default()
     };
 
-    let mut builder = CloudScraperBuilder::new()
-        .debug(args.debug)
-        .stealth(stealth);
+    let mut builder = FlaregunBuilder::new().debug(args.debug).stealth(stealth);
     if let Some(cap) = captcha {
         builder = builder.captcha(cap);
     }
@@ -160,10 +159,10 @@ async fn main() {
         builder = builder.add_proxy(proxy);
     }
 
-    let mut scraper = match builder.build() {
+    let mut flaregun = match builder.build() {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("error: failed to create scraper: {e}");
+            eprintln!("error: failed to create flaregun: {e}");
             process::exit(1);
         }
     };
@@ -180,7 +179,7 @@ async fn main() {
         }
     };
 
-    match scraper
+    match flaregun
         .request(method, &args.url, RequestOptions::default())
         .await
     {

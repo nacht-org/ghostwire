@@ -208,7 +208,7 @@ impl UserAgent {
         }
 
         if candidates.is_empty() {
-            return Err(crate::error::CloudscraperError::Other(
+            return Err(crate::error::FlaregunError::Other(
                 "No matching user agents found for the given options".to_string(),
             ));
         }
