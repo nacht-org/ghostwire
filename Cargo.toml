@@ -1,6 +1,6 @@
 [package]
 name = "ghostwire"
-version = "1.0.0"
+version = "1.0.1"
 edition = "2024"
 resolve = "3"
 description = "A Rust library to bypass Cloudflare anti-bot protections"
