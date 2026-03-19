@@ -1,4 +1,4 @@
-# flaregun
+# ghostwire
 
 An async Rust library for making HTTP requests to websites protected by Cloudflare's anti-bot systems. Automatically detects and handles Cloudflare challenges, with support for proxy rotation, stealth mode, and third-party captcha solvers.
 
@@ -38,7 +38,7 @@ No Rust was written by hand. The human's role was direction, not implementation.
 - **Realistic TLS** — `rustls` with browser-matching cipher suites loaded from `browsers.json`, embedded at compile time
 - **Cookie persistence** — Session cookies automatically maintained across redirects and challenge submissions
 - **Loop protection** — Configurable solve-depth limit prevents infinite challenge retry loops
-- **CLI** — `flaregun <url>` binary for quick command-line use
+- **CLI** — `ghostwire <url>` binary for quick command-line use
 
 ---
 
@@ -48,7 +48,7 @@ Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-flaregun = { path = "." }
+ghostwire = { path = "." }
 tokio = { version = "1", features = ["full"] }
 ```
 
@@ -57,7 +57,7 @@ tokio = { version = "1", features = ["full"] }
 ## Quick Start
 
 ```rust
-use flaregun::CloudScraper;
+use ghostwire::CloudScraper;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -78,7 +78,7 @@ async fn main() -> anyhow::Result<()> {
 Required when Cloudflare serves a challenge that cannot be solved algorithmically.
 
 ```rust
-use flaregun::{CloudScraper, captcha::CaptchaConfig};
+use ghostwire::{CloudScraper, captcha::CaptchaConfig};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -102,7 +102,7 @@ async fn main() -> anyhow::Result<()> {
 ### With proxy rotation
 
 ```rust
-use flaregun::{CloudScraper, proxy_manager::RotationStrategy};
+use ghostwire::{CloudScraper, proxy_manager::RotationStrategy};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -127,7 +127,7 @@ async fn main() -> anyhow::Result<()> {
 Stealth mode is enabled by default. Delays and header randomisation can be tuned:
 
 ```rust
-use flaregun::{CloudScraper, StealthConfig};
+use ghostwire::{CloudScraper, StealthConfig};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -153,7 +153,7 @@ async fn main() -> anyhow::Result<()> {
 ### Custom browser / user-agent
 
 ```rust
-use flaregun::{CloudScraper, user_agent::{Browser, UserAgentOptions}};
+use ghostwire::{CloudScraper, user_agent::{Browser, UserAgentOptions}};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -208,7 +208,7 @@ scraper.post_bytes("https://api.example.com/data", body).await?;
 
 ```
 USAGE:
-    flaregun [OPTIONS] <URL>
+    ghostwire [OPTIONS] <URL>
 
 ARGS:
     <URL>    URL to fetch
@@ -228,21 +228,21 @@ Examples:
 
 ```bash
 # Basic fetch
-flaregun https://example.com
+ghostwire https://example.com
 
 # With debug output
-flaregun --debug https://example.com
+ghostwire --debug https://example.com
 
 # With captcha solver
-flaregun https://protected.example.com \
+ghostwire https://protected.example.com \
     --captcha-provider 2captcha \
     --api-key YOUR_API_KEY
 
 # Through a proxy
-flaregun --proxy http://user:pass@host:8080 https://example.com
+ghostwire --proxy http://user:pass@host:8080 https://example.com
 
 # POST request
-flaregun -X POST https://httpbin.org/post
+ghostwire -X POST https://httpbin.org/post
 ```
 
 ---
@@ -271,7 +271,7 @@ All three providers support reCAPTCHA v2, hCaptcha, and Cloudflare Turnstile. Pr
 | Cloudflare Turnstile  | ✅                   | ✅                        |
 | Firewall rule 1020    | ❌ (error returned)  | ❌                        |
 
-> **Note on v3:** The v3 JavaScript VM challenge executes obfuscated JavaScript in a sandboxed environment. `flaregun` uses a deterministic fallback answer derived from challenge metadata. This works for many sites but is not guaranteed — full JS execution support is a future goal.
+> **Note on v3:** The v3 JavaScript VM challenge executes obfuscated JavaScript in a sandboxed environment. `ghostwire` uses a deterministic fallback answer derived from challenge metadata. This works for many sites but is not guaranteed — full JS execution support is a future goal.
 
 ---
 
@@ -321,4 +321,4 @@ MIT. See [LICENSE](LICENSE).
 
 ---
 
-*flaregun was written entirely by an AI. The human asked, the machine delivered.*
+*ghostwire was written entirely by an AI. The human asked, the machine delivered.*

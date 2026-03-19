@@ -5,7 +5,7 @@ use regex::Regex;
 use url::Url;
 
 use super::*;
-use crate::error::{FlaregunError, Result};
+use crate::error::{GhostwireError, Result};
 
 static RE_CF_OPT: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(?s)window\._cf_chl_opt\s*=\s*(\{.*?\});").unwrap());
@@ -34,7 +34,7 @@ impl CloudflareV2 {
     pub fn extract_challenge_data(body: &str) -> Result<serde_json::Value> {
         let caps = RE_CF_OPT
             .captures(body)
-            .ok_or_else(|| FlaregunError::ChallengeError("Cannot find _cf_chl_opt".into()))?;
+            .ok_or_else(|| GhostwireError::ChallengeError("Cannot find _cf_chl_opt".into()))?;
         let json_str = caps.get(1).unwrap().as_str();
         serde_json::from_str(json_str).map_err(Into::into)
     }
@@ -42,7 +42,7 @@ impl CloudflareV2 {
     /// Extract the challenge form action URL.
     pub fn extract_form_action(body: &str) -> Result<String> {
         let caps = RE_FORM_ACTION.captures(body).ok_or_else(|| {
-            FlaregunError::ChallengeError("Cannot find challenge form action".into())
+            GhostwireError::ChallengeError("Cannot find challenge form action".into())
         })?;
         Ok(caps.get(1).unwrap().as_str().to_string())
     }
@@ -54,7 +54,7 @@ impl CloudflareV2 {
     ) -> Result<Vec<(String, String)>> {
         let r = RE_R_TOKEN
             .captures(body)
-            .ok_or_else(|| FlaregunError::ChallengeError("Cannot find r token".into()))?
+            .ok_or_else(|| GhostwireError::ChallengeError("Cannot find r token".into()))?
             .get(1)
             .unwrap()
             .as_str()
@@ -98,7 +98,7 @@ impl CloudflareV2 {
     /// Extract the hCaptcha site key from the page.
     pub fn extract_site_key(body: &str) -> Result<String> {
         let caps = RE_SITEKEY.captures(body).ok_or_else(|| {
-            FlaregunError::CaptchaError("Cannot find hCaptcha site key".into())
+            GhostwireError::CaptchaError("Cannot find hCaptcha site key".into())
         })?;
         Ok(caps.get(1).unwrap().as_str().to_string())
     }

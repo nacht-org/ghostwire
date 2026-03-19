@@ -6,7 +6,7 @@ use std::time::Duration;
 use tokio::time::sleep;
 
 use super::{CaptchaConfig, CaptchaKind, CaptchaSolver};
-use crate::error::{FlaregunError, Result};
+use crate::error::{GhostwireError, Result};
 
 const HOST: &str = "https://2captcha.com";
 const POLL_INTERVAL: Duration = Duration::from_secs(5);
@@ -72,16 +72,16 @@ impl TwoCaptchaSolver {
             .form(&params)
             .send()
             .await
-            .map_err(FlaregunError::HttpError)?
+            .map_err(GhostwireError::HttpError)?
             .json()
             .await
-            .map_err(FlaregunError::HttpError)?;
+            .map_err(GhostwireError::HttpError)?;
 
         if resp.status == 1 {
             resp.request
-                .ok_or_else(|| FlaregunError::CaptchaBadJobID("2captcha: no job id".into()))
+                .ok_or_else(|| GhostwireError::CaptchaBadJobID("2captcha: no job id".into()))
         } else {
-            Err(FlaregunError::CaptchaAPIError(
+            Err(GhostwireError::CaptchaAPIError(
                 resp.request.unwrap_or_else(|| "unknown error".into()),
             ))
         }
@@ -94,7 +94,7 @@ impl TwoCaptchaSolver {
             sleep(POLL_INTERVAL).await;
 
             if tokio::time::Instant::now() > deadline {
-                return Err(FlaregunError::CaptchaTimeout(format!(
+                return Err(GhostwireError::CaptchaTimeout(format!(
                     "2captcha: job {job_id} timed out"
                 )));
             }
@@ -110,14 +110,14 @@ impl TwoCaptchaSolver {
                 ])
                 .send()
                 .await
-                .map_err(FlaregunError::HttpError)?
+                .map_err(GhostwireError::HttpError)?
                 .json()
                 .await
-                .map_err(FlaregunError::HttpError)?;
+                .map_err(GhostwireError::HttpError)?;
 
             if resp.status == 1 {
                 return resp.request.ok_or_else(|| {
-                    FlaregunError::CaptchaAPIError("2captcha: empty result".into())
+                    GhostwireError::CaptchaAPIError("2captcha: empty result".into())
                 });
             }
 
@@ -126,7 +126,7 @@ impl TwoCaptchaSolver {
                 continue;
             }
 
-            return Err(FlaregunError::CaptchaAPIError(
+            return Err(GhostwireError::CaptchaAPIError(
                 resp.request.unwrap_or_else(|| "unknown error".into()),
             ));
         }
@@ -143,7 +143,7 @@ impl CaptchaSolver for TwoCaptchaSolver {
         config: &CaptchaConfig,
     ) -> Result<String> {
         let api_key = config.api_key.as_deref().ok_or_else(|| {
-            FlaregunError::CaptchaParameter("2captcha: missing api_key".into())
+            GhostwireError::CaptchaParameter("2captcha: missing api_key".into())
         })?;
 
         let proxy = if config.no_proxy {

@@ -1,15 +1,15 @@
-//! # flaregun
+//! # ghostwire
 //!
 //! A Rust library to bypass Cloudflare's anti-bot protections.
 //!
 //! ## Quick start
 //!
 //! ```rust,no_run
-//! use flaregun::Flaregun;
+//! use ghostwire::Ghostwire;
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {
-//!     let mut scraper = Flaregun::new()?;
+//!     let mut scraper = Ghostwire::new()?;
 //!     let resp = scraper.get("https://example.com").await?;
 //!     println!("Status: {}", resp.status());
 //!     Ok(())
@@ -19,7 +19,7 @@
 //! ## With captcha solver
 //!
 //! ```rust,no_run
-//! use flaregun::{Flaregun, captcha::CaptchaConfig};
+//! use ghostwire::{Ghostwire, captcha::CaptchaConfig};
 //!
 //! #[tokio::main]
 //! async fn main() -> anyhow::Result<()> {
@@ -29,7 +29,7 @@
 //!         ..Default::default()
 //!     };
 //!
-//!     let mut scraper = Flaregun::builder()
+//!     let mut scraper = Ghostwire::builder()
 //!         .captcha(captcha)
 //!         .debug(true)
 //!         .build()?;
@@ -50,8 +50,8 @@ pub mod user_agent;
 
 // Top-level re-exports.
 pub use captcha::{CaptchaConfig, CaptchaKind};
-pub use client::{Flaregun, FlaregunBuilder, RequestOptions};
-pub use error::{FlaregunError, Result};
+pub use client::{Ghostwire, GhostwireBuilder, RequestOptions};
+pub use error::{GhostwireError, Result};
 pub use proxy_manager::{ProxyManager, RotationStrategy};
 pub use stealth::StealthConfig;
 pub use user_agent::{Browser, UserAgent, UserAgentOptions};

@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use rand::prelude::IndexedRandom;
 
-use crate::error::{FlaregunError, Result};
+use crate::error::{GhostwireError, Result};
 
 /// How to pick the next proxy from the pool.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -144,7 +144,7 @@ impl ProxyManager {
         } else {
             format!("http://{proxy_url}")
         };
-        reqwest::Proxy::all(&url).map_err(|e| FlaregunError::ProxyError(e.to_string()))
+        reqwest::Proxy::all(&url).map_err(|e| GhostwireError::ProxyError(e.to_string()))
     }
 
     pub fn get_stats(&self) -> serde_json::Value {

@@ -5,7 +5,7 @@ use regex::Regex;
 use url::Url;
 
 use super::*;
-use crate::error::{FlaregunError, Result};
+use crate::error::{GhostwireError, Result};
 
 static RE_CF_CTX: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(?s)window\._cf_chl_ctx\s*=\s*(\{.*?\});").unwrap());
@@ -79,7 +79,7 @@ impl CloudflareV3 {
     pub fn build_payload(body: &str, answer: &str) -> Result<Vec<(String, String)>> {
         let r = RE_R_TOKEN
             .captures(body)
-            .ok_or_else(|| FlaregunError::ChallengeError("Cannot find r token".into()))?
+            .ok_or_else(|| GhostwireError::ChallengeError("Cannot find r token".into()))?
             .get(1)
             .unwrap()
             .as_str()

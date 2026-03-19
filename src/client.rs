@@ -1,4 +1,4 @@
-//! Core `Flaregun` client – wraps `reqwest` with Cloudflare bypass logic.
+//! Core `Ghostwire` client – wraps `reqwest` with Cloudflare bypass logic.
 
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -15,16 +15,16 @@ use crate::challenge::turnstile::CloudflareTurnstile;
 use crate::challenge::v1::{CloudflareV1, V1ChallengeKind};
 use crate::challenge::v2::CloudflareV2;
 use crate::challenge::v3::CloudflareV3;
-use crate::error::{FlaregunError, Result};
+use crate::error::{GhostwireError, Result};
 use crate::proxy_manager::{ProxyManager, RotationStrategy};
 use crate::stealth::{StealthConfig, StealthState};
 use crate::user_agent::{UserAgent, UserAgentOptions};
 
 // ── Builder ───────────────────────────────────────────────────────────────────
 
-/// Fluent builder for `Flaregun`.
+/// Fluent builder for `Ghostwire`.
 #[derive(Debug, Clone)]
-pub struct FlaregunBuilder {
+pub struct GhostwireBuilder {
     // Challenge control
     pub disable_v1: bool,
     pub disable_v2: bool,
@@ -66,9 +66,9 @@ pub struct FlaregunBuilder {
     pub debug: bool,
 }
 
-impl Default for FlaregunBuilder {
+impl Default for GhostwireBuilder {
     fn default() -> Self {
-        FlaregunBuilder {
+        GhostwireBuilder {
             disable_v1: false,
             disable_v2: false,
             disable_v3: false,
@@ -96,7 +96,7 @@ impl Default for FlaregunBuilder {
     }
 }
 
-impl FlaregunBuilder {
+impl GhostwireBuilder {
     pub fn new() -> Self {
         Self::default()
     }
@@ -178,8 +178,8 @@ impl FlaregunBuilder {
         self
     }
 
-    /// Consume the builder and produce a `Flaregun`.
-    pub fn build(self) -> Result<Flaregun> {
+    /// Consume the builder and produce a `Ghostwire`.
+    pub fn build(self) -> Result<Ghostwire> {
         let ua = UserAgent::new(&self.user_agent_opts)?;
 
         let default_headers = ua.header_map();
@@ -191,7 +191,7 @@ impl FlaregunBuilder {
             .brotli(self.user_agent_opts.allow_brotli)
             .deflate(true)
             .build()
-            .map_err(FlaregunError::HttpError)?;
+            .map_err(GhostwireError::HttpError)?;
 
         let proxy_manager = ProxyManager::new(
             self.proxies.clone(),
@@ -201,7 +201,7 @@ impl FlaregunBuilder {
 
         let stealth_state = StealthState::new(self.stealth.clone());
 
-        Ok(Flaregun {
+        Ok(Ghostwire {
             client,
             user_agent: ua,
             config: Arc::new(self),
@@ -216,13 +216,13 @@ impl FlaregunBuilder {
     }
 }
 
-// ── Flaregun ──────────────────────────────────────────────────────────────
+// ── Ghostwire ──────────────────────────────────────────────────────────────
 
 /// A Cloudflare-aware async HTTP client.
-pub struct Flaregun {
+pub struct Ghostwire {
     pub(crate) client: reqwest::Client,
     pub(crate) user_agent: UserAgent,
-    pub(crate) config: Arc<FlaregunBuilder>,
+    pub(crate) config: Arc<GhostwireBuilder>,
     #[allow(dead_code)]
     pub(crate) proxy_manager: Arc<Mutex<ProxyManager>>,
     pub(crate) stealth: Arc<Mutex<StealthState>>,
@@ -237,15 +237,15 @@ pub struct Flaregun {
     retry_403_count: usize,
 }
 
-impl Flaregun {
-    /// Create a `Flaregun` with sensible defaults.
+impl Ghostwire {
+    /// Create a `Ghostwire` with sensible defaults.
     pub fn new() -> Result<Self> {
-        FlaregunBuilder::new().build()
+        GhostwireBuilder::new().build()
     }
 
     /// Return a fluent builder.
-    pub fn builder() -> FlaregunBuilder {
-        FlaregunBuilder::new()
+    pub fn builder() -> GhostwireBuilder {
+        GhostwireBuilder::new()
     }
 
     // ── Convenience HTTP methods ──────────────────────────────────────────────
@@ -321,14 +321,14 @@ impl Flaregun {
         if self.solve_depth >= self.config.solve_depth {
             let depth = self.solve_depth;
             self.solve_depth = 0;
-            return Err(FlaregunError::LoopProtection(depth));
+            return Err(GhostwireError::LoopProtection(depth));
         }
 
         // Collect body text for challenge detection (consumes the response).
         let body = response
             .text()
             .await
-            .map_err(FlaregunError::HttpError)?;
+            .map_err(GhostwireError::HttpError)?;
 
         // ── Turnstile ────────────────────────────────────────────────────────
         if !self.config.disable_turnstile
@@ -364,10 +364,10 @@ impl Flaregun {
         if !self.config.disable_v1 {
             match CloudflareV1::classify(status, &server, &body) {
                 Some(V1ChallengeKind::Firewall1020) => {
-                    return Err(FlaregunError::FirewallBlocked);
+                    return Err(GhostwireError::FirewallBlocked);
                 }
                 Some(V1ChallengeKind::NewIUAM) | Some(V1ChallengeKind::NewCaptcha) => {
-                    return Err(FlaregunError::ChallengeError(
+                    return Err(GhostwireError::ChallengeError(
                         "Detected a Cloudflare v2 challenge – configure a captcha provider.".into(),
                     ));
                 }
@@ -445,7 +445,7 @@ impl Flaregun {
             // reqwest's RequestBuilder doesn't expose a per-request redirect
             // override, so we build a one-shot client with redirects disabled,
             // then replay the already-configured request through it.
-            let built = req.build().map_err(FlaregunError::HttpError)?;
+            let built = req.build().map_err(GhostwireError::HttpError)?;
             let method = built.method().clone();
             let url = built.url().clone();
 
@@ -453,16 +453,16 @@ impl Flaregun {
                 .cookie_store(true)
                 .redirect(reqwest::redirect::Policy::none())
                 .build()
-                .map_err(FlaregunError::HttpError)?;
+                .map_err(GhostwireError::HttpError)?;
 
             return no_redirect_client
                 .request(method, url)
                 .send()
                 .await
-                .map_err(FlaregunError::HttpError);
+                .map_err(GhostwireError::HttpError);
         }
 
-        req.send().await.map_err(FlaregunError::HttpError)
+        req.send().await.map_err(GhostwireError::HttpError)
     }
 
     // ── Throttle ──────────────────────────────────────────────────────────────
@@ -526,7 +526,7 @@ impl Flaregun {
         _opts: RequestOptions,
     ) -> Result<Response> {
         let captcha_cfg = self.config.captcha.as_ref().ok_or_else(|| {
-            FlaregunError::CaptchaProviderMissing(
+            GhostwireError::CaptchaProviderMissing(
                 "No captcha provider configured for v1 captcha challenge.".into(),
             )
         })?;
@@ -536,7 +536,7 @@ impl Flaregun {
         }
 
         let solver = make_solver(captcha_cfg).ok_or_else(|| {
-            FlaregunError::CaptchaProviderMissing(format!(
+            GhostwireError::CaptchaProviderMissing(format!(
                 "Unknown captcha provider: {}",
                 captcha_cfg.provider
             ))
@@ -551,7 +551,7 @@ impl Flaregun {
             RE_SITEKEY
                 .captures(body)
                 .map(|c| c.get(1).unwrap().as_str().to_string())
-                .ok_or_else(|| FlaregunError::CaptchaError("Cannot find site key".into()))?
+                .ok_or_else(|| GhostwireError::CaptchaError("Cannot find site key".into()))?
         };
 
         let token = solver
@@ -571,7 +571,7 @@ impl Flaregun {
             RE_FORM
                 .captures(body)
                 .and_then(|c| c.name("uuid").map(|m| m.as_str().to_string()))
-                .ok_or_else(|| FlaregunError::CaptchaError("Cannot find captcha form".into()))?
+                .ok_or_else(|| GhostwireError::CaptchaError("Cannot find captcha form".into()))?
         };
 
         let parsed = Url::parse(page_url)?;
@@ -643,11 +643,11 @@ impl Flaregun {
         _opts: RequestOptions,
     ) -> Result<Response> {
         let captcha_cfg = self.config.captcha.as_ref().ok_or_else(|| {
-            FlaregunError::CaptchaProviderMissing("No captcha provider configured".into())
+            GhostwireError::CaptchaProviderMissing("No captcha provider configured".into())
         })?;
 
         let solver = make_solver(captcha_cfg).ok_or_else(|| {
-            FlaregunError::CaptchaProviderMissing(format!(
+            GhostwireError::CaptchaProviderMissing(format!(
                 "Unknown captcha provider: {}",
                 captcha_cfg.provider
             ))
@@ -688,7 +688,7 @@ impl Flaregun {
         let challenge_data = CloudflareV3::extract_challenge_data(body);
 
         let action = challenge_data.form_action.as_deref().ok_or_else(|| {
-            FlaregunError::V3Error("Cannot find v3 challenge form action".into())
+            GhostwireError::V3Error("Cannot find v3 challenge form action".into())
         })?;
         let submit_url = CloudflareV3::resolve_url(page_url, action)?;
 
@@ -724,13 +724,13 @@ impl Flaregun {
         _opts: RequestOptions,
     ) -> Result<Response> {
         let captcha_cfg = self.config.captcha.as_ref().ok_or_else(|| {
-            FlaregunError::CaptchaProviderMissing(
+            GhostwireError::CaptchaProviderMissing(
                 "Turnstile detected but no captcha provider configured.".into(),
             )
         })?;
 
         let solver = make_solver(captcha_cfg).ok_or_else(|| {
-            FlaregunError::CaptchaProviderMissing(format!(
+            GhostwireError::CaptchaProviderMissing(format!(
                 "Unknown captcha provider: {}",
                 captcha_cfg.provider
             ))
@@ -769,7 +769,7 @@ impl Flaregun {
 
 // ── RequestOptions ────────────────────────────────────────────────────────────
 
-/// Per-request options passed to `Flaregun::request`.
+/// Per-request options passed to `Ghostwire::request`.
 #[derive(Default)]
 pub struct RequestOptions {
     /// Extra headers merged on top of defaults.
@@ -798,6 +798,6 @@ fn build_text_response(status: u16, headers: HeaderMap, body: String) -> Result<
     }
     let http_resp = builder
         .body(body_bytes)
-        .map_err(|e| FlaregunError::Other(e.to_string()))?;
+        .map_err(|e| GhostwireError::Other(e.to_string()))?;
     Ok(reqwest::Response::from(http_resp))
 }

@@ -1,10 +1,10 @@
-//! Error types for flaregun.
+//! Error types for ghostwire.
 
 use thiserror::Error;
 
 /// Top-level error type.
 #[derive(Debug, Error)]
-pub enum FlaregunError {
+pub enum GhostwireError {
     // ── Cloudflare challenge errors ───────────────────────────────────────────
     #[error("Cloudflare loop protection: tried to solve {0} time(s) in a row")]
     LoopProtection(usize),
@@ -77,4 +77,4 @@ pub enum FlaregunError {
     Other(String),
 }
 
-pub type Result<T> = std::result::Result<T, FlaregunError>;
+pub type Result<T> = std::result::Result<T, GhostwireError>;

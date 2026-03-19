@@ -5,7 +5,7 @@ use regex::Regex;
 use url::Url;
 
 use super::*;
-use crate::error::{FlaregunError, Result};
+use crate::error::{GhostwireError, Result};
 
 static RE_SUBMIT_DELAY: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"submit\(\);\r?\n\s*},\s*([0-9]+)").unwrap());
@@ -82,7 +82,7 @@ impl CloudflareV1 {
         });
 
         let caps = RE_FORM.captures(body).ok_or_else(|| {
-            FlaregunError::IUAMError("Cannot find IUAM challenge form".into())
+            GhostwireError::IUAMError("Cannot find IUAM challenge form".into())
         })?;
 
         let form_html = caps.name("form").unwrap().as_str();

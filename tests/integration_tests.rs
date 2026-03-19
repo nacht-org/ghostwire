@@ -1,10 +1,10 @@
-//! Integration tests for flaregun.
+//! Integration tests for ghostwire.
 //!
 //! These tests use `wiremock` to simulate Cloudflare challenge pages locally
 //! without making real network requests.
 
-use flaregun::{
-    Flaregun, FlaregunBuilder,
+use ghostwire::{
+    Ghostwire, GhostwireBuilder,
     challenge::{
         turnstile::CloudflareTurnstile,
         v1::{CloudflareV1, V1ChallengeKind},
@@ -313,10 +313,10 @@ fn v3_detection() {
 
 #[test]
 fn build_default_scraper() {
-    let flaregun = Flaregun::new();
+    let ghostwire = Ghostwire::new();
     assert!(
-        flaregun.is_ok(),
-        "Default flaregun should build successfully"
+        ghostwire.is_ok(),
+        "Default ghostwire should build successfully"
     );
 }
 
@@ -328,8 +328,8 @@ fn build_with_custom_ua() {
         mobile: true,
         ..Default::default()
     };
-    let flaregun = FlaregunBuilder::new().user_agent_opts(opts).build();
-    assert!(flaregun.is_ok());
+    let ghostwire = GhostwireBuilder::new().user_agent_opts(opts).build();
+    assert!(ghostwire.is_ok());
 }
 
 #[test]
@@ -338,8 +338,8 @@ fn build_with_stealth_disabled() {
         enabled: false,
         ..Default::default()
     };
-    let flaregun = FlaregunBuilder::new().stealth(stealth).build();
-    assert!(flaregun.is_ok());
+    let ghostwire = GhostwireBuilder::new().stealth(stealth).build();
+    assert!(ghostwire.is_ok());
 }
 
 // ── Stealth mode tests ────────────────────────────────────────────────────────

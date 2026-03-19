@@ -1,11 +1,11 @@
 [package]
-name = "flaregun"
+name = "ghostwire"
 version = "1.0.0"
 edition = "2024"
 resolve = "3"
 description = "A Rust library to bypass Cloudflare anti-bot protections"
 license = "MIT"
-repository = "https://github.com/nacht-org/flaregun"
+repository = "https://github.com/nacht-org/ghostwire"
 keywords = ["cloudflare", "scraper", "http", "bot-bypass"]
 categories = ["web-programming", "network-programming"]
 

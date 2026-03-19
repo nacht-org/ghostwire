@@ -1,6 +1,6 @@
-//! # flaregun — CLI example
+//! # ghostwire — CLI example
 //!
-//! Fetch a URL through flaregun's Cloudflare bypass logic.
+//! Fetch a URL through ghostwire's Cloudflare bypass logic.
 //!
 //! Usage:
 //!   cargo run --example scrape -- [OPTIONS] <URL>
@@ -16,7 +16,7 @@
 
 use std::process;
 
-use flaregun::{FlaregunBuilder, RequestOptions, StealthConfig, captcha::CaptchaConfig};
+use ghostwire::{GhostwireBuilder, RequestOptions, StealthConfig, captcha::CaptchaConfig};
 use reqwest;
 use tracing_subscriber::{EnvFilter, fmt};
 
@@ -125,9 +125,9 @@ async fn main() {
     let args = parse_args();
 
     let default_level = if args.debug {
-        "flaregun=debug"
+        "ghostwire=debug"
     } else {
-        "flaregun=info"
+        "ghostwire=info"
     };
     let filter =
         EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(default_level));
@@ -151,7 +151,7 @@ async fn main() {
         ..Default::default()
     };
 
-    let mut builder = FlaregunBuilder::new().debug(args.debug).stealth(stealth);
+    let mut builder = GhostwireBuilder::new().debug(args.debug).stealth(stealth);
     if let Some(cap) = captcha {
         builder = builder.captcha(cap);
     }
@@ -159,10 +159,10 @@ async fn main() {
         builder = builder.add_proxy(proxy);
     }
 
-    let mut flaregun = match builder.build() {
+    let mut ghostwire = match builder.build() {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("error: failed to create flaregun: {e}");
+            eprintln!("error: failed to create ghostwire: {e}");
             process::exit(1);
         }
     };
@@ -179,7 +179,7 @@ async fn main() {
         }
     };
 
-    match flaregun
+    match ghostwire
         .request(method, &args.url, RequestOptions::default())
         .await
     {

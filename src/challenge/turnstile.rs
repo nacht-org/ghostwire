@@ -5,7 +5,7 @@ use regex::Regex;
 use url::Url;
 
 use super::*;
-use crate::error::{FlaregunError, Result};
+use crate::error::{GhostwireError, Result};
 
 static RE_FORM_ACTION: Lazy<Regex> =
     Lazy::new(|| Regex::new(r#"(?s)<form[^>]*action="([^"]+)""#).unwrap());
@@ -31,7 +31,7 @@ impl CloudflareTurnstile {
             .captures(body)
             .map(|c| c.get(1).unwrap().as_str().to_string())
             .ok_or_else(|| {
-                FlaregunError::TurnstileError("Cannot find Turnstile site key".into())
+                GhostwireError::TurnstileError("Cannot find Turnstile site key".into())
             })
     }
 
