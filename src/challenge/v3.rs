@@ -4,6 +4,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use url::Url;
 
+use super::js_interp::{JsInterpreter, JsResult};
 use super::*;
 use crate::error::{GhostwireError, Result};
 
@@ -21,7 +22,10 @@ static RE_INPUT_FIELDS: Lazy<Regex> =
 
 static RE_R_TOKEN: Lazy<Regex> = Lazy::new(|| Regex::new(r#"name="r" value="([^"]+)""#).unwrap());
 
-/// Handles Cloudflare v3 JavaScript-VM challenges.
+static RE_VM_SCRIPT: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"(?s)<script[^>]*>\s*(.*?window\._cf_chl_enter.*?)</script>").unwrap()
+});
+
 pub struct CloudflareV3;
 
 impl CloudflareV3 {
@@ -33,14 +37,13 @@ impl CloudflareV3 {
                 || RE_V3_FORM.is_match(body))
     }
 
-    /// Extract all challenge context/option data from the page.
     pub fn extract_challenge_data(body: &str) -> V3ChallengeData {
-        let ctx = RE_CF_CTX
+        let ctx: serde_json::Value = RE_CF_CTX
             .captures(body)
             .and_then(|c| serde_json::from_str(c.get(1).unwrap().as_str()).ok())
             .unwrap_or_default();
 
-        let opt = RE_CF_OPT
+        let opt: serde_json::Value = RE_CF_OPT
             .captures(body)
             .and_then(|c| serde_json::from_str(c.get(1).unwrap().as_str()).ok())
             .unwrap_or_default();
@@ -49,14 +52,49 @@ impl CloudflareV3 {
             .captures(body)
             .map(|c| c.get(1).unwrap().as_str().to_string());
 
+        let vm_script = RE_VM_SCRIPT
+            .captures(body)
+            .map(|c| c.get(1).unwrap().as_str().to_string());
+
         V3ChallengeData {
             ctx,
             opt,
             form_action,
+            vm_script,
         }
     }
 
-    /// Generate a fallback (non-JS) answer from available challenge metadata.
+    pub fn execute_vm_challenge(
+        data: &V3ChallengeData,
+        domain: &str,
+        interp: &JsInterpreter,
+    ) -> String {
+        let ctx_json = serde_json::to_string(&data.ctx).unwrap_or_else(|_| "{}".into());
+        let opt_json = serde_json::to_string(&data.opt).unwrap_or_else(|_| "{}".into());
+
+        if let Some(raw_script) = &data.vm_script {
+            let full_script =
+                JsInterpreter::build_vm_script(raw_script, domain, &ctx_json, &opt_json);
+
+            match interp.eval(&full_script, domain) {
+                JsResult::Ok(answer) if !answer.is_empty() => {
+                    tracing::debug!("v3 JS answer: {answer:?}");
+                    return answer;
+                }
+                JsResult::Ok(_) => {
+                    tracing::warn!("v3 interpreter returned empty string, using fallback");
+                }
+                JsResult::Unavailable => {
+                    tracing::warn!("v3 interpreter unavailable, using fallback");
+                }
+            }
+        } else {
+            tracing::warn!("no vm_script in page, using fallback");
+        }
+
+        Self::generate_fallback_answer(data)
+    }
+
     pub fn generate_fallback_answer(data: &V3ChallengeData) -> String {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
@@ -71,11 +109,9 @@ impl CloudflareV3 {
             cv_id.hash(&mut h);
             return (h.finish() % 1_000_000).to_string();
         }
-        // Last resort.
-        rand::random::<u32>().to_string()
+        (rand::random::<u32>() % 900_000 + 100_000).to_string()
     }
 
-    /// Build the POST payload for a v3 challenge submission.
     pub fn build_payload(body: &str, answer: &str) -> Result<Vec<(String, String)>> {
         let r = RE_R_TOKEN
             .captures(body)
@@ -90,7 +126,6 @@ impl CloudflareV3 {
             ("jschl_answer".to_string(), answer.to_string()),
         ];
 
-        // Collect all other input fields from the form.
         for cap in RE_INPUT_FIELDS.captures_iter(body) {
             let name = cap.get(1).unwrap().as_str().to_string();
             let value = cap.get(2).unwrap().as_str().to_string();
@@ -102,7 +137,6 @@ impl CloudflareV3 {
         Ok(payload)
     }
 
-    /// Resolve form action to absolute URL.
     pub fn resolve_url(page_url: &str, action: &str) -> Result<String> {
         if action.starts_with("http") {
             return Ok(action.to_string());
@@ -122,4 +156,5 @@ pub struct V3ChallengeData {
     pub ctx: serde_json::Value,
     pub opt: serde_json::Value,
     pub form_action: Option<String>,
+    pub vm_script: Option<String>,
 }

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- JavaScript challenge solving using `v8`, `node (command)`, `bun (command)`, `boa_engine` or fallback answer generation.
+
 ## [1.0.1] - 2026-03-19
 
 ### Fixed
