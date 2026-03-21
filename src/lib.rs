@@ -50,6 +50,7 @@ pub mod user_agent;
 
 // Top-level re-exports.
 pub use captcha::{CaptchaConfig, CaptchaKind};
+pub use challenge::JsInterpreter;
 pub use client::{Ghostwire, GhostwireBuilder, RequestOptions};
 pub use error::{GhostwireError, Result};
 pub use proxy_manager::{ProxyManager, RotationStrategy};

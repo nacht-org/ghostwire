@@ -6,10 +6,11 @@
 use ghostwire::{
     Ghostwire, GhostwireBuilder,
     challenge::{
+        JsInterpreter,
         turnstile::CloudflareTurnstile,
         v1::{CloudflareV1, V1ChallengeKind},
         v2::CloudflareV2,
-        v3::CloudflareV3,
+        v3::{CloudflareV3, V3ChallengeData},
     },
     proxy_manager::{ProxyManager, RotationStrategy},
     stealth::{StealthConfig, StealthState},
@@ -394,4 +395,456 @@ fn stealth_disabled_no_headers_added() {
         headers.is_empty(),
         "Disabled stealth should not add any headers"
     );
+}
+
+// ── V3 challenge data extraction tests ───────────────────────────────────────
+
+fn cf_v3_body_full() -> &'static str {
+    r#"
+    <html><head></head><body>
+    <script>
+    cpo.src = '/cdn-cgi/challenge-platform/h/b/orchestrate/jsch/v3?ray=abc';
+    </script>
+    <script>
+    window._cf_chl_ctx = {"cvId":"cv-abc-123","chType":"jsch","cZone":"example.com"};
+    window._cf_chl_opt = {"chlPageData":"page-data-xyz","cvId":"cv-abc-123"};
+    </script>
+    <form id="challenge-form" action="/cdn-cgi/challenge-platform/h/b/flow/ov1/0123456789/__cf_chl_rt_tk=TOKEN123">
+    <input type="hidden" name="r" value="r-token-value"/>
+    <input type="hidden" name="cf_chl_seq_df" value="seq-value"/>
+    </form>
+    <script>
+    window._cf_chl_enter = function(){};
+    window._cf_chl_answer = '42';
+    </script>
+    </body></html>
+    "#
+}
+
+fn cf_v3_body_ctx_only() -> &'static str {
+    r#"
+    <html><body>
+    <script>window._cf_chl_ctx = {"cvId":"ctx-only-id"};</script>
+    <form id="challenge-form" action="/challenge?__cf_chl_rt_tk=TOK">
+    <input name="r" value="r-val"/>
+    </form>
+    </body></html>
+    "#
+}
+
+fn cf_v3_body_platform() -> &'static str {
+    r#"
+    <html><body>
+    <script>cpo.src = '/cdn-cgi/challenge-platform/h/b/orchestrate/jsch/v3?ray=xyz';</script>
+    <form id="challenge-form" action="/cf?__cf_chl_rt_tk=T">
+    <input name="r" value="rv"/>
+    </form>
+    </body></html>
+    "#
+}
+
+#[test]
+fn v3_detection_via_ctx() {
+    assert!(CloudflareV3::is_v3_challenge(
+        503,
+        CLOUDFLARE_SERVER,
+        cf_v3_body_ctx_only()
+    ));
+}
+
+#[test]
+fn v3_detection_via_platform_script() {
+    assert!(CloudflareV3::is_v3_challenge(
+        503,
+        CLOUDFLARE_SERVER,
+        cf_v3_body_platform()
+    ));
+}
+
+#[test]
+fn v3_detection_via_form_rt_tk() {
+    let body = r#"<form id="challenge-form" action="/x?__cf_chl_rt_tk=T"><input name="r" value="v"/></form>"#;
+    assert!(CloudflareV3::is_v3_challenge(403, CLOUDFLARE_SERVER, body));
+}
+
+#[test]
+fn v3_not_detected_on_clean_page() {
+    assert!(!CloudflareV3::is_v3_challenge(
+        200,
+        CLOUDFLARE_SERVER,
+        "<html><body>Hello</body></html>"
+    ));
+}
+
+#[test]
+fn v3_not_detected_on_non_cloudflare_server() {
+    assert!(!CloudflareV3::is_v3_challenge(
+        503,
+        "nginx",
+        cf_v3_body_ctx_only()
+    ));
+}
+
+#[test]
+fn v3_extract_ctx_json() {
+    let data = CloudflareV3::extract_challenge_data(cf_v3_body_full());
+    assert_eq!(
+        data.ctx.get("cvId").and_then(|v| v.as_str()),
+        Some("cv-abc-123")
+    );
+    assert_eq!(
+        data.ctx.get("chType").and_then(|v| v.as_str()),
+        Some("jsch")
+    );
+}
+
+#[test]
+fn v3_extract_opt_json() {
+    let data = CloudflareV3::extract_challenge_data(cf_v3_body_full());
+    assert_eq!(
+        data.opt.get("chlPageData").and_then(|v| v.as_str()),
+        Some("page-data-xyz")
+    );
+}
+
+#[test]
+fn v3_extract_form_action() {
+    let data = CloudflareV3::extract_challenge_data(cf_v3_body_full());
+    assert!(
+        data.form_action
+            .as_deref()
+            .unwrap_or("")
+            .contains("__cf_chl_rt_tk"),
+        "form_action should contain the rt_tk token"
+    );
+}
+
+#[test]
+fn v3_extract_vm_script() {
+    let data = CloudflareV3::extract_challenge_data(cf_v3_body_full());
+    assert!(
+        data.vm_script.is_some(),
+        "should extract the VM script block"
+    );
+    assert!(
+        data.vm_script.as_deref().unwrap().contains("_cf_chl_enter"),
+        "vm_script should contain _cf_chl_enter"
+    );
+}
+
+#[test]
+fn v3_extract_missing_ctx_defaults_to_null() {
+    let body = r#"<form id="challenge-form" action="/x?__cf_chl_rt_tk=T"></form>"#;
+    let data = CloudflareV3::extract_challenge_data(body);
+    assert!(
+        data.ctx.is_null(),
+        "missing ctx should default to JSON null"
+    );
+}
+
+#[test]
+fn v3_build_payload_extracts_r_token() {
+    let payload = CloudflareV3::build_payload(cf_v3_body_full(), "test-answer")
+        .expect("build_payload should succeed");
+    let r = payload
+        .iter()
+        .find(|(k, _)| k == "r")
+        .map(|(_, v)| v.as_str());
+    assert_eq!(r, Some("r-token-value"));
+}
+
+#[test]
+fn v3_build_payload_contains_answer() {
+    let payload = CloudflareV3::build_payload(cf_v3_body_full(), "my-answer")
+        .expect("build_payload should succeed");
+    let answer = payload
+        .iter()
+        .find(|(k, _)| k == "jschl_answer")
+        .map(|(_, v)| v.as_str());
+    assert_eq!(answer, Some("my-answer"));
+}
+
+#[test]
+fn v3_build_payload_includes_extra_inputs() {
+    let payload = CloudflareV3::build_payload(cf_v3_body_full(), "ans")
+        .expect("build_payload should succeed");
+    let has_seq = payload
+        .iter()
+        .any(|(k, v)| k == "cf_chl_seq_df" && v == "seq-value");
+    assert!(has_seq, "payload should include extra hidden inputs");
+}
+
+#[test]
+fn v3_build_payload_missing_r_token_errors() {
+    let body = "<html><body>no form here</body></html>";
+    assert!(
+        CloudflareV3::build_payload(body, "ans").is_err(),
+        "missing r token should return an error"
+    );
+}
+
+#[test]
+fn v3_resolve_url_absolute_passthrough() {
+    let resolved =
+        CloudflareV3::resolve_url("https://example.com/page", "https://other.com/challenge")
+            .unwrap();
+    assert_eq!(resolved, "https://other.com/challenge");
+}
+
+#[test]
+fn v3_resolve_url_relative_action() {
+    let resolved = CloudflareV3::resolve_url(
+        "https://example.com/page",
+        "/cdn-cgi/challenge-platform/flow?__cf_chl_rt_tk=T",
+    )
+    .unwrap();
+    assert!(
+        resolved.starts_with("https://example.com"),
+        "resolved URL should use original scheme+host: {resolved}"
+    );
+    assert!(resolved.contains("__cf_chl_rt_tk"));
+}
+
+// ── V3 fallback answer tests ──────────────────────────────────────────────────
+
+#[test]
+fn v3_fallback_uses_page_data_hash() {
+    let mut data = V3ChallengeData::default();
+    data.opt = serde_json::json!({"chlPageData": "some-page-data"});
+    let a1 = CloudflareV3::generate_fallback_answer(&data);
+    let a2 = CloudflareV3::generate_fallback_answer(&data);
+    // Same input → same deterministic output.
+    assert_eq!(
+        a1, a2,
+        "fallback should be deterministic for same page data"
+    );
+    // Result must be purely numeric.
+    assert!(
+        a1.chars().all(|c| c.is_ascii_digit()),
+        "answer must be numeric: {a1}"
+    );
+}
+
+#[test]
+fn v3_fallback_uses_cv_id_when_no_page_data() {
+    let mut data = V3ChallengeData::default();
+    data.ctx = serde_json::json!({"cvId": "some-cv-id"});
+    let a = CloudflareV3::generate_fallback_answer(&data);
+    assert!(
+        a.chars().all(|c| c.is_ascii_digit()),
+        "answer must be numeric: {a}"
+    );
+}
+
+#[test]
+fn v3_fallback_random_when_no_data() {
+    let data = V3ChallengeData::default();
+    let a = CloudflareV3::generate_fallback_answer(&data);
+    // Should be a 6-digit number (100000–999999).
+    assert!(
+        a.chars().all(|c| c.is_ascii_digit()),
+        "answer must be numeric: {a}"
+    );
+    let n: u64 = a.parse().unwrap();
+    assert!(
+        (100_000..=999_999).contains(&n),
+        "random fallback should be 6 digits: {n}"
+    );
+}
+
+#[test]
+fn v3_fallback_page_data_beats_cv_id() {
+    // When both are present, chlPageData takes priority.
+    let mut data = V3ChallengeData::default();
+    data.opt = serde_json::json!({"chlPageData": "pd"});
+    data.ctx = serde_json::json!({"cvId": "cv"});
+    let with_both = CloudflareV3::generate_fallback_answer(&data);
+
+    let mut only_page = V3ChallengeData::default();
+    only_page.opt = serde_json::json!({"chlPageData": "pd"});
+    let with_page_only = CloudflareV3::generate_fallback_answer(&only_page);
+
+    assert_eq!(
+        with_both, with_page_only,
+        "chlPageData should take priority over cvId"
+    );
+}
+
+// ── V3 execute_vm_challenge tests ─────────────────────────────────────────────
+
+/// Returns true when the named binary exists somewhere in PATH.
+fn have_binary(bin: &str) -> bool {
+    std::env::var_os("PATH")
+        .map(|p| std::env::split_paths(&p).any(|dir| dir.join(bin).is_file()))
+        .unwrap_or(false)
+}
+
+#[test]
+fn v3_execute_vm_falls_back_when_no_vm_script() {
+    // No vm_script → must fall back to heuristic, never panic.
+    let mut data = V3ChallengeData::default();
+    data.ctx = serde_json::json!({"cvId": "fallback-cv"});
+    let answer = CloudflareV3::execute_vm_challenge(&data, "example.com", &JsInterpreter::None);
+    assert!(
+        answer.chars().all(|c| c.is_ascii_digit()),
+        "fallback answer must be numeric: {answer}"
+    );
+}
+
+#[test]
+fn v3_execute_vm_interp_none_uses_fallback() {
+    let mut data = V3ChallengeData::default();
+    data.vm_script = Some("window._cf_chl_answer = 'should-not-appear';".into());
+    data.ctx = serde_json::json!({"cvId": "cv-id-here"});
+    // JsInterpreter::None → skips JS → falls back to cvId hash.
+    let answer = CloudflareV3::execute_vm_challenge(&data, "example.com", &JsInterpreter::None);
+    assert!(
+        answer.chars().all(|c| c.is_ascii_digit()),
+        "with None interpreter answer must be numeric: {answer}"
+    );
+}
+
+#[test]
+fn v3_execute_vm_with_node() {
+    if !have_binary("node") {
+        eprintln!("skipping v3_execute_vm_with_node: node not in PATH");
+        return;
+    }
+    let mut data = V3ChallengeData::default();
+    // vm_script sets the answer directly so we know what to expect.
+    data.vm_script = Some("window._cf_chl_answer = 'node-vm-42';".into());
+    data.ctx = serde_json::json!({});
+    data.opt = serde_json::json!({});
+    let answer = CloudflareV3::execute_vm_challenge(&data, "example.com", &JsInterpreter::Node);
+    assert_eq!(answer, "node-vm-42", "node should extract the VM answer");
+}
+
+#[test]
+fn v3_execute_vm_with_bun() {
+    if !have_binary("bun") {
+        eprintln!("skipping v3_execute_vm_with_bun: bun not in PATH");
+        return;
+    }
+    let mut data = V3ChallengeData::default();
+    data.vm_script = Some("window._cf_chl_answer = 'bun-vm-99';".into());
+    data.ctx = serde_json::json!({});
+    data.opt = serde_json::json!({});
+    let answer = CloudflareV3::execute_vm_challenge(&data, "example.com", &JsInterpreter::Bun);
+    assert_eq!(answer, "bun-vm-99", "bun should extract the VM answer");
+}
+
+#[cfg(feature = "js-boa")]
+#[test]
+fn v3_execute_vm_with_boa() {
+    let mut data = V3ChallengeData::default();
+    data.vm_script = Some("window._cf_chl_answer = 'boa-vm-7';".into());
+    data.ctx = serde_json::json!({});
+    data.opt = serde_json::json!({});
+    let answer = CloudflareV3::execute_vm_challenge(&data, "example.com", &JsInterpreter::Boa);
+    assert_eq!(answer, "boa-vm-7", "boa should extract the VM answer");
+}
+
+#[cfg(feature = "js-v8")]
+#[test]
+fn v3_execute_vm_with_v8() {
+    let mut data = V3ChallengeData::default();
+    data.vm_script = Some("window._cf_chl_answer = 'v8-vm-3';".into());
+    data.ctx = serde_json::json!({});
+    data.opt = serde_json::json!({});
+    let answer = CloudflareV3::execute_vm_challenge(&data, "example.com", &JsInterpreter::V8);
+    assert_eq!(answer, "v8-vm-3", "v8 should extract the VM answer");
+}
+
+#[test]
+fn v3_execute_vm_ctx_accessible_from_script() {
+    if !have_binary("node") {
+        eprintln!("skipping: node not in PATH");
+        return;
+    }
+    let mut data = V3ChallengeData::default();
+    // The script reads back the injected cvId from window._cf_chl_ctx.
+    data.vm_script = Some("window._cf_chl_answer = window._cf_chl_ctx.cvId;".into());
+    data.ctx = serde_json::json!({"cvId": "injected-cv-id"});
+    data.opt = serde_json::json!({});
+    let answer = CloudflareV3::execute_vm_challenge(&data, "example.com", &JsInterpreter::Node);
+    assert_eq!(
+        answer, "injected-cv-id",
+        "ctx should be accessible from the VM script"
+    );
+}
+
+#[test]
+fn v3_execute_vm_opt_accessible_from_script() {
+    if !have_binary("node") {
+        eprintln!("skipping: node not in PATH");
+        return;
+    }
+    let mut data = V3ChallengeData::default();
+    data.vm_script = Some("window._cf_chl_answer = window._cf_chl_opt.chlPageData;".into());
+    data.ctx = serde_json::json!({});
+    data.opt = serde_json::json!({"chlPageData": "injected-page-data"});
+    let answer = CloudflareV3::execute_vm_challenge(&data, "example.com", &JsInterpreter::Node);
+    assert_eq!(
+        answer, "injected-page-data",
+        "opt should be accessible from the VM script"
+    );
+}
+
+#[test]
+fn v3_execute_vm_crashing_script_falls_back() {
+    if !have_binary("node") {
+        eprintln!("skipping: node not in PATH");
+        return;
+    }
+    let mut data = V3ChallengeData::default();
+    // Deliberately broken JS that will cause node to exit non-zero.
+    data.vm_script = Some("this is not valid javascript !!!".into());
+    data.ctx = serde_json::json!({"cvId": "crash-cv"});
+    data.opt = serde_json::json!({});
+    // Must not panic; must return a numeric heuristic answer.
+    let answer = CloudflareV3::execute_vm_challenge(&data, "example.com", &JsInterpreter::Node);
+    assert!(
+        answer.chars().all(|c| c.is_ascii_digit()),
+        "crashing script should fall back to numeric heuristic: {answer}"
+    );
+}
+
+// ── GhostwireBuilder js_interpreter field ────────────────────────────────────
+
+#[test]
+fn builder_default_interpreter_is_auto() {
+    // Confirm the default is Auto so existing users are unaffected.
+    let b = GhostwireBuilder::new();
+    assert_eq!(b.js_interpreter, JsInterpreter::Auto);
+}
+
+#[test]
+fn builder_interpreter_can_be_set() {
+    for interp in [
+        JsInterpreter::None,
+        JsInterpreter::Node,
+        JsInterpreter::Bun,
+        JsInterpreter::Boa,
+        JsInterpreter::V8,
+        JsInterpreter::Auto,
+    ] {
+        let b = GhostwireBuilder::new().js_interpreter(interp.clone());
+        assert_eq!(b.js_interpreter, interp);
+    }
+}
+
+#[test]
+fn build_with_node_interpreter() {
+    let g = GhostwireBuilder::new()
+        .js_interpreter(JsInterpreter::Node)
+        .build();
+    assert!(g.is_ok(), "should build with Node interpreter");
+}
+
+#[test]
+fn build_with_none_interpreter() {
+    let g = GhostwireBuilder::new()
+        .js_interpreter(JsInterpreter::None)
+        .build();
+    assert!(g.is_ok(), "should build with None interpreter");
 }

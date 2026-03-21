@@ -1,10 +1,12 @@
 //! Cloudflare challenge detection and solving modules.
 
+pub mod js_interp;
 pub mod turnstile;
 pub mod v1;
 pub mod v2;
 pub mod v3;
 
+pub use js_interp::JsInterpreter;
 pub use turnstile::CloudflareTurnstile;
 pub use v1::CloudflareV1;
 pub use v2::CloudflareV2;

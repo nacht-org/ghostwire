@@ -11,6 +11,7 @@ use tracing::{debug, instrument, warn};
 use url::Url;
 
 use crate::captcha::{CaptchaConfig, CaptchaKind, make_solver};
+use crate::challenge::js_interp::JsInterpreter;
 use crate::challenge::turnstile::CloudflareTurnstile;
 use crate::challenge::v1::{CloudflareV1, V1ChallengeKind};
 use crate::challenge::v2::CloudflareV2;
@@ -64,6 +65,12 @@ pub struct GhostwireBuilder {
 
     /// Print debug information to the log.
     pub debug: bool,
+
+    /// JavaScript interpreter to use when solving v3 VM challenges.
+    ///
+    /// Defaults to [`JsInterpreter::Auto`], which tries boa → v8 → node → bun
+    /// in order and falls back to a heuristic answer if none are available.
+    pub js_interpreter: JsInterpreter,
 }
 
 impl Default for GhostwireBuilder {
@@ -92,6 +99,7 @@ impl Default for GhostwireBuilder {
             max_403_retries: 3,
             min_request_interval_secs: 1.0,
             debug: false,
+            js_interpreter: JsInterpreter::Auto,
         }
     }
 }
@@ -178,6 +186,22 @@ impl GhostwireBuilder {
         self
     }
 
+    /// Set the JavaScript interpreter used to solve Cloudflare v3 VM challenges.
+    ///
+    /// ```rust,no_run
+    /// use ghostwire::Ghostwire;
+    /// use ghostwire::challenge::JsInterpreter;
+    ///
+    /// let client = Ghostwire::builder()
+    ///     .js_interpreter(JsInterpreter::Node)
+    ///     .build()
+    ///     .unwrap();
+    /// ```
+    pub fn js_interpreter(mut self, interp: JsInterpreter) -> Self {
+        self.js_interpreter = interp;
+        self
+    }
+
     /// Consume the builder and produce a `Ghostwire`.
     pub fn build(self) -> Result<Ghostwire> {
         let ua = UserAgent::new(&self.user_agent_opts)?;
@@ -200,11 +224,13 @@ impl GhostwireBuilder {
         );
 
         let stealth_state = StealthState::new(self.stealth.clone());
+        let js_interpreter = self.js_interpreter.clone();
 
         Ok(Ghostwire {
             client,
             user_agent: ua,
             config: Arc::new(self),
+            js_interpreter,
             proxy_manager: Arc::new(Mutex::new(proxy_manager)),
             stealth: Arc::new(Mutex::new(stealth_state)),
             solve_depth: 0,
@@ -223,6 +249,7 @@ pub struct Ghostwire {
     pub(crate) client: reqwest::Client,
     pub(crate) user_agent: UserAgent,
     pub(crate) config: Arc<GhostwireBuilder>,
+    pub(crate) js_interpreter: JsInterpreter,
     #[allow(dead_code)]
     pub(crate) proxy_manager: Arc<Mutex<ProxyManager>>,
     pub(crate) stealth: Arc<Mutex<StealthState>>,
@@ -325,10 +352,7 @@ impl Ghostwire {
         }
 
         // Collect body text for challenge detection (consumes the response).
-        let body = response
-            .text()
-            .await
-            .map_err(GhostwireError::HttpError)?;
+        let body = response.text().await.map_err(GhostwireError::HttpError)?;
 
         // ── Turnstile ────────────────────────────────────────────────────────
         if !self.config.disable_turnstile
@@ -698,7 +722,13 @@ impl Ghostwire {
             .unwrap_or_else(|| rand::random::<f64>() * 4.0 + 1.0);
         tokio::time::sleep(Duration::from_secs_f64(delay)).await;
 
-        let answer = CloudflareV3::generate_fallback_answer(&challenge_data);
+        let domain = Url::parse(page_url)
+            .ok()
+            .and_then(|u| u.host_str().map(|h| h.to_string()))
+            .unwrap_or_default();
+
+        let answer =
+            CloudflareV3::execute_vm_challenge(&challenge_data, &domain, &self.js_interpreter);
         let payload = CloudflareV3::build_payload(body, &answer)?;
 
         let parsed = Url::parse(page_url)?;

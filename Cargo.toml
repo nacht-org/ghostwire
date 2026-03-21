@@ -78,6 +78,16 @@ base64 = "0.22"
 http = "1"
 bytes = "1"
 
+# Optional JavaScript engines – enabled via feature flags (see [features] below)
+v8         = { version = "146.9.0", optional = true }
+boa_engine = { version = "0.19.1",  optional = true }
+
+# Pin icu_locale to 2.1.1 to resolve the transitive conflict between
+# temporal_capi 0.1.2 (requires icu_locale ^2.1.0 → picks 2.1.0) and
+# icu_calendar 2.1.1 (requires icu_locale ~2.1.1).  Both constraints are
+# satisfied by 2.1.1, but the resolver needs us to state it explicitly.
+icu_locale = { version = "=2.1.1", optional = true }
+
 [dev-dependencies]
 tokio-test = "0.4"
 wiremock = "0.6"
@@ -85,10 +95,25 @@ pretty_assertions = "1"
 
 [features]
 default = []
-capsolver = []
-twocaptcha = []
+
+# Captcha solver integrations
+capsolver   = []
+twocaptcha  = []
 anticaptcha = []
 all-captcha = ["capsolver", "twocaptcha", "anticaptcha"]
+
+# JavaScript interpreter feature flags for v3 VM challenge solving.
+#
+# js-v8  – v8 crate bindings (fast native V8; requires a C++ toolchain and
+#           downloads a pre-built V8 static lib on first build, ~180 MB).
+#           Also enables the icu_locale pin needed to resolve the v8 dep graph.
+# js-boa – boa_engine, a pure-Rust JS engine (no native deps, always builds,
+#           somewhat slower; good fallback when V8 is not available).
+#
+# Auto chain order (first success wins):
+#   js-v8 → node subprocess → bun subprocess → js-boa → heuristic fallback
+js-v8  = ["dep:v8", "dep:icu_locale"]
+js-boa = ["dep:boa_engine"]
 
 [profile.release]
 opt-level = 3
