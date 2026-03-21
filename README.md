@@ -267,11 +267,9 @@ All three providers support reCAPTCHA v2, hCaptcha, and Cloudflare Turnstile. Pr
 | CF v1 hCaptcha        | ✅                   | ✅                        |
 | CF v2 JS orchestrated | ✅                   | ❌                        |
 | CF v2 managed captcha | ✅                   | ✅                        |
-| CF v3 JavaScript VM   | ✅ (approx.)         | ❌                        |
+| CF v3 JavaScript VM   | ✅         | ❌                        |
 | Cloudflare Turnstile  | ✅                   | ✅                        |
 | Firewall rule 1020    | ❌ (error returned)  | ❌                        |
-
-> **Note on v3:** The v3 JavaScript VM challenge executes obfuscated JavaScript in a sandboxed environment. `ghostwire` uses a deterministic fallback answer derived from challenge metadata. This works for many sites but is not guaranteed — full JS execution support is a future goal.
 
 ---
 
