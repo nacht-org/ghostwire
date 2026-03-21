@@ -10,7 +10,6 @@ keywords = ["cloudflare", "scraper", "http", "bot-bypass"]
 categories = ["web-programming", "network-programming"]
 
 [dependencies]
-# HTTP client with cookie store and TLS support
 reqwest = { version = "0.13.2", default-features = false, features = [
     "cookies",
     "gzip",
@@ -26,67 +25,36 @@ reqwest = { version = "0.13.2", default-features = false, features = [
     "form",
     "query",
 ] }
-
-# Async runtime
 tokio = { version = "1", features = ["full"] }
-
-# Serialization / deserialization
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
-
-# HTML / regex parsing
 regex = "1"
 scraper = "0.26"
 html-escape = "0.2"
-
-# URL handling
 url = "2"
-
-# Random number generation
 rand = "0.10"
-
-# Error handling
 thiserror = "2"
 anyhow = "1"
-
-# Tracing (structured, async-aware observability)
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt"] }
-
-# Time utilities
 chrono = { version = "0.4", features = ["serde"] }
-
-# Async utilities
 futures = "0.3"
 async-trait = "0.1"
-
-# TLS
 rustls = { version = "0.23", features = ["ring"] }
 rustls-pemfile = "2"
 webpki-roots = "1.0"
-
-# Cookie jar
 reqwest_cookie_store = "0.10"
-
-# Lazy static initialisation
 once_cell = "1"
-
-# String utilities
 base64 = "0.22"
-
-# Raw HTTP response construction
 http = "1"
 bytes = "1"
 
-# Optional JavaScript engines – enabled via feature flags (see [features] below)
+# Optional JS engines (feature-gated)
 v8         = { version = "146.9.0", optional = true }
 boa_engine = { version = "0.19.1",  optional = true }
-
-# Pin icu_locale to 2.1.1 to resolve the transitive conflict between
-# temporal_capi 0.1.2 (requires icu_locale ^2.1.0 → picks 2.1.0) and
-# icu_calendar 2.1.1 (requires icu_locale ~2.1.1).  Both constraints are
-# satisfied by 2.1.1, but the resolver needs us to state it explicitly.
-icu_locale = { version = "=2.1.1", optional = true }
+# Pins icu_locale to 2.1.1 to satisfy both temporal_capi 0.1.2 (^2.1.0)
+# and icu_calendar 2.1.1 (~2.1.1) when js-v8 is enabled.
+icu_locale = { version = "=2.1.1",  optional = true }
 
 [dev-dependencies]
 tokio-test = "0.4"
@@ -95,23 +63,10 @@ pretty_assertions = "1"
 
 [features]
 default = []
-
-# Captcha solver integrations
 capsolver   = []
 twocaptcha  = []
 anticaptcha = []
 all-captcha = ["capsolver", "twocaptcha", "anticaptcha"]
-
-# JavaScript interpreter feature flags for v3 VM challenge solving.
-#
-# js-v8  – v8 crate bindings (fast native V8; requires a C++ toolchain and
-#           downloads a pre-built V8 static lib on first build, ~180 MB).
-#           Also enables the icu_locale pin needed to resolve the v8 dep graph.
-# js-boa – boa_engine, a pure-Rust JS engine (no native deps, always builds,
-#           somewhat slower; good fallback when V8 is not available).
-#
-# Auto chain order (first success wins):
-#   js-v8 → node subprocess → bun subprocess → js-boa → heuristic fallback
 js-v8  = ["dep:v8", "dep:icu_locale"]
 js-boa = ["dep:boa_engine"]
 

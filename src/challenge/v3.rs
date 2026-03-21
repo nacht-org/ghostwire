@@ -22,13 +22,10 @@ static RE_INPUT_FIELDS: Lazy<Regex> =
 
 static RE_R_TOKEN: Lazy<Regex> = Lazy::new(|| Regex::new(r#"name="r" value="([^"]+)""#).unwrap());
 
-/// Matches the script block that contains `window._cf_chl_enter` – the entry
-/// point of the VM challenge bootstrap JS.
 static RE_VM_SCRIPT: Lazy<Regex> = Lazy::new(|| {
     Regex::new(r"(?s)<script[^>]*>\s*(.*?window\._cf_chl_enter.*?)</script>").unwrap()
 });
 
-/// Handles Cloudflare v3 JavaScript-VM challenges.
 pub struct CloudflareV3;
 
 impl CloudflareV3 {
@@ -40,9 +37,6 @@ impl CloudflareV3 {
                 || RE_V3_FORM.is_match(body))
     }
 
-    // ── Data extraction ───────────────────────────────────────────────────────
-
-    /// Extract all challenge context/option data from the page.
     pub fn extract_challenge_data(body: &str) -> V3ChallengeData {
         let ctx: serde_json::Value = RE_CF_CTX
             .captures(body)
@@ -70,22 +64,11 @@ impl CloudflareV3 {
         }
     }
 
-    // ── JS execution ──────────────────────────────────────────────────────────
-
-    /// Try to solve the JS VM challenge using the interpreter chain.
-    ///
-    /// The chain is (first success wins):
-    ///   `boa_engine` (feature `js-boa`) → `rusty_v8` (feature `js-v8`)
-    ///   → `node` binary → `bun` binary → heuristic fallback
-    ///
-    /// The interpreter is selected by `interp`; pass [`JsInterpreter::Auto`]
-    /// to let the library pick the best available engine.
     pub fn execute_vm_challenge(
         data: &V3ChallengeData,
         domain: &str,
         interp: &JsInterpreter,
     ) -> String {
-        // Build JSON representations of ctx / opt for injection into the JS env.
         let ctx_json = serde_json::to_string(&data.ctx).unwrap_or_else(|_| "{}".into());
         let opt_json = serde_json::to_string(&data.opt).unwrap_or_else(|_| "{}".into());
 
@@ -95,28 +78,23 @@ impl CloudflareV3 {
 
             match interp.eval(&full_script, domain) {
                 JsResult::Ok(answer) if !answer.is_empty() => {
-                    tracing::debug!("v3 JS answer from interpreter: {answer:?}");
+                    tracing::debug!("v3 JS answer: {answer:?}");
                     return answer;
                 }
                 JsResult::Ok(_) => {
-                    tracing::warn!("v3 JS interpreter returned empty string, using fallback");
+                    tracing::warn!("v3 interpreter returned empty string, using fallback");
                 }
                 JsResult::Unavailable => {
-                    tracing::warn!("v3 JS interpreter unavailable, using heuristic fallback");
+                    tracing::warn!("v3 interpreter unavailable, using fallback");
                 }
             }
         } else {
-            tracing::warn!("No vm_script found in page, using heuristic fallback");
+            tracing::warn!("no vm_script in page, using fallback");
         }
 
         Self::generate_fallback_answer(data)
     }
 
-    // ── Fallback ──────────────────────────────────────────────────────────────
-
-    /// Generate a heuristic (non-JS) answer from available challenge metadata.
-    ///
-    /// Used when every JS engine in the chain fails or is unavailable.
     pub fn generate_fallback_answer(data: &V3ChallengeData) -> String {
         use std::collections::hash_map::DefaultHasher;
         use std::hash::{Hash, Hasher};
@@ -131,13 +109,9 @@ impl CloudflareV3 {
             cv_id.hash(&mut h);
             return (h.finish() % 1_000_000).to_string();
         }
-        // Last resort: random 6-digit number, matching Python's randint(100000, 999999).
         (rand::random::<u32>() % 900_000 + 100_000).to_string()
     }
 
-    // ── Payload building ──────────────────────────────────────────────────────
-
-    /// Build the POST payload for a v3 challenge submission.
     pub fn build_payload(body: &str, answer: &str) -> Result<Vec<(String, String)>> {
         let r = RE_R_TOKEN
             .captures(body)
@@ -152,7 +126,6 @@ impl CloudflareV3 {
             ("jschl_answer".to_string(), answer.to_string()),
         ];
 
-        // Collect all other input fields from the form.
         for cap in RE_INPUT_FIELDS.captures_iter(body) {
             let name = cap.get(1).unwrap().as_str().to_string();
             let value = cap.get(2).unwrap().as_str().to_string();
@@ -164,9 +137,6 @@ impl CloudflareV3 {
         Ok(payload)
     }
 
-    // ── URL helpers ───────────────────────────────────────────────────────────
-
-    /// Resolve form action to absolute URL.
     pub fn resolve_url(page_url: &str, action: &str) -> Result<String> {
         if action.starts_with("http") {
             return Ok(action.to_string());
@@ -181,17 +151,10 @@ impl CloudflareV3 {
     }
 }
 
-// ── Data types ────────────────────────────────────────────────────────────────
-
 #[derive(Debug, Default)]
 pub struct V3ChallengeData {
-    /// Parsed `window._cf_chl_ctx` object.
     pub ctx: serde_json::Value,
-    /// Parsed `window._cf_chl_opt` object.
     pub opt: serde_json::Value,
-    /// The `action` attribute of the challenge `<form>`.
     pub form_action: Option<String>,
-    /// Raw JS source of the VM challenge script (the block containing
-    /// `window._cf_chl_enter`), if present.
     pub vm_script: Option<String>,
 }
