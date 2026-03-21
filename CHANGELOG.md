@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-03-21
+
 ### Added
 
 - JavaScript challenge solving using `v8`, `node (command)`, `bun (command)`, `boa_engine` or fallback answer generation.
